@@ -1,0 +1,24 @@
+{
+  "name": "internal-api-mcp",
+  "description": "Internal API gateway for company services",
+  "version": "1.2.0",
+  "url": "https://api-gateway.your-company.com/mcp",
+  "roles": [
+    "dev",
+    "qa"
+  ],
+  "agents": [
+    "opencode",
+    "copilot",
+    "claude"
+  ],
+  "tags": [
+    "internal",
+    "api",
+    "gateway"
+  ],
+  "env_required": [
+    "API_GATEWAY_TOKEN"
+  ],
+  "security_approved": true
+}

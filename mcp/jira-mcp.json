@@ -1,0 +1,30 @@
+{
+  "name": "jira-mcp",
+  "description": "Jira issue management and project tracking integration",
+  "version": "1.0.0",
+  "command": "npx",
+  "args": [
+    "@your-org/jira-mcp@latest"
+  ],
+  "roles": [
+    "dev",
+    "qa",
+    "ba"
+  ],
+  "agents": [
+    "opencode",
+    "copilot",
+    "claude",
+    "codex"
+  ],
+  "tags": [
+    "project-management",
+    "jira",
+    "tracking"
+  ],
+  "env_required": [
+    "JIRA_API_TOKEN",
+    "JIRA_HOST"
+  ],
+  "security_approved": true
+}

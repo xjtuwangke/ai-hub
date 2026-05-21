@@ -1,0 +1,24 @@
+{
+  "name": "load-testing",
+  "version": "1.2.0",
+  "description": "Load testing, stress testing, and capacity planning",
+  "tags": [
+    "qa",
+    "devops",
+    "load",
+    "performance",
+    "testing"
+  ],
+  "roles": [
+    "qa",
+    "devops"
+  ],
+  "agents": [
+    "opencode",
+    "claude"
+  ],
+  "author": "platform-team",
+  "security_grade": "A",
+  "last_updated": "2026-05-20",
+  "changelog_file": "CHANGELOG.md"
+}

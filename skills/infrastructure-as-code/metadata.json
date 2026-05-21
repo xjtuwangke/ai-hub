@@ -1,0 +1,23 @@
+{
+  "name": "infrastructure-as-code",
+  "version": "2.3.0",
+  "description": "Terraform, CloudFormation, and infrastructure automation",
+  "tags": [
+    "devops",
+    "iac",
+    "terraform",
+    "cloud",
+    "aws"
+  ],
+  "roles": [
+    "devops"
+  ],
+  "agents": [
+    "opencode",
+    "claude"
+  ],
+  "author": "platform-team",
+  "security_grade": "A",
+  "last_updated": "2026-05-20",
+  "changelog_file": "CHANGELOG.md"
+}

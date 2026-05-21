@@ -1,0 +1,23 @@
+{
+  "name": "incident-response",
+  "version": "1.0.0",
+  "description": "Incident response playbooks and post-mortem templates",
+  "tags": [
+    "devops",
+    "incident",
+    "response",
+    "monitoring",
+    "sre"
+  ],
+  "roles": [
+    "devops"
+  ],
+  "agents": [
+    "opencode",
+    "claude"
+  ],
+  "author": "platform-team",
+  "security_grade": "A",
+  "last_updated": "2026-05-20",
+  "changelog_file": "CHANGELOG.md"
+}

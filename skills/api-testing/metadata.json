@@ -1,0 +1,25 @@
+{
+  "name": "api-testing",
+  "version": "1.2.0",
+  "description": "API testing strategy and automated test case generation",
+  "tags": [
+    "qa",
+    "dev",
+    "testing",
+    "http",
+    "rest"
+  ],
+  "roles": [
+    "qa",
+    "dev"
+  ],
+  "agents": [
+    "opencode",
+    "codex",
+    "claude"
+  ],
+  "author": "platform-team",
+  "security_grade": "A",
+  "last_updated": "2026-05-20",
+  "changelog_file": "CHANGELOG.md"
+}

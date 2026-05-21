@@ -1,0 +1,11 @@
+{
+  "name": "/security-audit",
+  "version": "1.1.0",
+  "description": "Run OWASP Top 10 security audit on the codebase",
+  "roles": ["qa", "dev"],
+  "agents": ["opencode", "claude"],
+  "tags": ["security", "audit", "qa"],
+  "dependencies": ["security-audit"],
+  "author": "platform-team",
+  "last_updated": "2026-05-20"
+}

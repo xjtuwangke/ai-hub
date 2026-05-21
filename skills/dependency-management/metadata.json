@@ -1,0 +1,23 @@
+{
+  "name": "dependency-management",
+  "version": "1.0.0",
+  "description": "Dependency scanning, updates, and vulnerability management",
+  "tags": [
+    "dev",
+    "dependencies",
+    "security",
+    "npm",
+    "supply-chain"
+  ],
+  "roles": [
+    "dev"
+  ],
+  "agents": [
+    "opencode",
+    "claude"
+  ],
+  "author": "platform-team",
+  "security_grade": "A",
+  "last_updated": "2026-05-20",
+  "changelog_file": "CHANGELOG.md"
+}

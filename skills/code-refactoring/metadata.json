@@ -1,0 +1,25 @@
+{
+  "name": "code-refactoring",
+  "version": "1.3.0",
+  "description": "Code refactoring techniques and legacy modernization",
+  "tags": [
+    "dev",
+    "refactoring",
+    "clean-code",
+    "maintenance",
+    "legacy"
+  ],
+  "roles": [
+    "dev"
+  ],
+  "agents": [
+    "opencode",
+    "copilot",
+    "claude",
+    "codex"
+  ],
+  "author": "platform-team",
+  "security_grade": "A",
+  "last_updated": "2026-05-20",
+  "changelog_file": "CHANGELOG.md"
+}

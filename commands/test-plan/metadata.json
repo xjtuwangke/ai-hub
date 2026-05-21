@@ -1,0 +1,11 @@
+{
+  "name": "/test-plan",
+  "version": "1.3.0",
+  "description": "Generate comprehensive test plan with automation strategy",
+  "roles": ["qa"],
+  "agents": ["opencode", "claude", "codex"],
+  "tags": ["testing", "qa", "plan"],
+  "dependencies": ["api-testing", "test-automation"],
+  "author": "platform-team",
+  "last_updated": "2026-05-20"
+}

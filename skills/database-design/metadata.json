@@ -1,0 +1,24 @@
+{
+  "name": "database-design",
+  "version": "2.0.0",
+  "description": "Relational and NoSQL database design patterns",
+  "tags": [
+    "dev",
+    "database",
+    "design",
+    "sql",
+    "nosql"
+  ],
+  "roles": [
+    "dev"
+  ],
+  "agents": [
+    "opencode",
+    "copilot",
+    "claude"
+  ],
+  "author": "platform-team",
+  "security_grade": "A",
+  "last_updated": "2026-05-20",
+  "changelog_file": "CHANGELOG.md"
+}

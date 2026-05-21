@@ -1,0 +1,25 @@
+{
+  "name": "ci-cd-pipeline",
+  "version": "3.1.0",
+  "description": "CI/CD pipeline design and GitHub Actions workflows",
+  "tags": [
+    "devops",
+    "cicd",
+    "pipeline",
+    "automation",
+    "github-actions"
+  ],
+  "roles": [
+    "devops",
+    "dev"
+  ],
+  "agents": [
+    "opencode",
+    "claude",
+    "copilot"
+  ],
+  "author": "platform-team",
+  "security_grade": "A",
+  "last_updated": "2026-05-20",
+  "changelog_file": "CHANGELOG.md"
+}

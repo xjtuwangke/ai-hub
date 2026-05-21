@@ -1,0 +1,25 @@
+{
+  "name": "requirement-analysis",
+  "version": "2.0.0",
+  "description": "Business requirement analysis and structured documentation",
+  "tags": [
+    "ba",
+    "dev",
+    "requirements",
+    "analysis",
+    "documentation"
+  ],
+  "roles": [
+    "ba",
+    "dev"
+  ],
+  "agents": [
+    "opencode",
+    "copilot",
+    "claude"
+  ],
+  "author": "platform-team",
+  "security_grade": "A",
+  "last_updated": "2026-05-20",
+  "changelog_file": "CHANGELOG.md"
+}

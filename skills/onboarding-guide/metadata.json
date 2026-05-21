@@ -1,0 +1,25 @@
+{
+  "name": "onboarding-guide",
+  "version": "1.0.0",
+  "description": "Team onboarding, setup guides, and knowledge transfer",
+  "tags": [
+    "all",
+    "onboarding",
+    "guide",
+    "team",
+    "knowledge"
+  ],
+  "roles": [
+    "all"
+  ],
+  "agents": [
+    "opencode",
+    "copilot",
+    "claude",
+    "codex"
+  ],
+  "author": "platform-team",
+  "security_grade": "A",
+  "last_updated": "2026-05-20",
+  "changelog_file": "CHANGELOG.md"
+}

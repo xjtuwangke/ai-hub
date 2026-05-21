@@ -1,0 +1,26 @@
+{
+  "name": "code-review",
+  "version": "2.1.0",
+  "description": "Code review best practices and automated checklists",
+  "tags": [
+    "dev",
+    "qa",
+    "review",
+    "quality",
+    "best-practices"
+  ],
+  "roles": [
+    "dev",
+    "qa"
+  ],
+  "agents": [
+    "opencode",
+    "copilot",
+    "claude",
+    "codex"
+  ],
+  "author": "platform-team",
+  "security_grade": "A",
+  "last_updated": "2026-05-20",
+  "changelog_file": "CHANGELOG.md"
+}

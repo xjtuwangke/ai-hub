@@ -1,0 +1,11 @@
+{
+  "name": "/requirement-doc",
+  "version": "1.0.0",
+  "description": "Generate structured requirement document from raw input",
+  "roles": ["ba", "dev"],
+  "agents": ["opencode", "copilot", "claude"],
+  "tags": ["requirements", "ba", "documentation"],
+  "dependencies": ["requirement-analysis", "documentation-writing"],
+  "author": "platform-team",
+  "last_updated": "2026-05-20"
+}

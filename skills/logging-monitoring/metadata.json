@@ -1,0 +1,24 @@
+{
+  "name": "logging-monitoring",
+  "version": "1.5.0",
+  "description": "Observability, logging best practices, and monitoring setup",
+  "tags": [
+    "devops",
+    "dev",
+    "logging",
+    "monitoring",
+    "observability"
+  ],
+  "roles": [
+    "devops",
+    "dev"
+  ],
+  "agents": [
+    "opencode",
+    "claude"
+  ],
+  "author": "platform-team",
+  "security_grade": "A",
+  "last_updated": "2026-05-20",
+  "changelog_file": "CHANGELOG.md"
+}

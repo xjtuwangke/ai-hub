@@ -1,0 +1,11 @@
+{
+  "name": "/code-review",
+  "version": "1.2.0",
+  "description": "Execute comprehensive code review with security and performance checks",
+  "roles": ["dev", "qa"],
+  "agents": ["opencode", "claude", "copilot"],
+  "tags": ["review", "quality", "dev"],
+  "dependencies": ["code-review"],
+  "author": "platform-team",
+  "last_updated": "2026-05-20"
+}

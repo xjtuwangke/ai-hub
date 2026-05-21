@@ -1,0 +1,23 @@
+{
+  "name": "accessibility-testing",
+  "version": "1.0.0",
+  "description": "Web accessibility (a11y) testing and WCAG compliance",
+  "tags": [
+    "qa",
+    "accessibility",
+    "testing",
+    "a11y",
+    "wcag"
+  ],
+  "roles": [
+    "qa"
+  ],
+  "agents": [
+    "opencode",
+    "claude"
+  ],
+  "author": "platform-team",
+  "security_grade": "A",
+  "last_updated": "2026-05-20",
+  "changelog_file": "CHANGELOG.md"
+}

@@ -1,0 +1,24 @@
+{
+  "name": "backend-optimization",
+  "version": "1.2.0",
+  "description": "Backend performance tuning and scalability patterns",
+  "tags": [
+    "dev",
+    "backend",
+    "performance",
+    "scalability",
+    "optimization"
+  ],
+  "roles": [
+    "dev"
+  ],
+  "agents": [
+    "opencode",
+    "codex",
+    "claude"
+  ],
+  "author": "platform-team",
+  "security_grade": "A",
+  "last_updated": "2026-05-20",
+  "changelog_file": "CHANGELOG.md"
+}

@@ -1,0 +1,152 @@
+name: GitHub Actions Workflow
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    name: Validate AI Hub Contents
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Validate Skills
+        run: |
+          errors=0
+          for skill_dir in skills/*/; do
+            if [ ! -f "$skill_dir/metadata.json" ]; then
+              echo "❌ Missing metadata.json in $skill_dir"
+              errors=$((errors + 1))
+              continue
+            fi
+            if [ ! -f "$skill_dir/SKILL.md" ]; then
+              echo "❌ Missing SKILL.md in $skill_dir"
+              errors=$((errors + 1))
+              continue
+            fi
+            
+            # 检查 metadata 必需字段
+            if ! node -e "
+              const fs = require('fs');
+              const meta = JSON.parse(fs.readFileSync('$skill_dir/metadata.json'));
+              const required = ['name', 'version', 'description', 'tags', 'roles', 'agents'];
+              for (const field of required) {
+                if (!meta[field]) {
+                  console.log('❌ Missing field: ' + field + ' in $skill_dir');
+                  process.exit(1);
+                }
+              }
+            "; then
+              errors=$((errors + 1))
+            fi
+          done
+          
+          if [ $errors -gt 0 ]; then
+            echo "❌ Found $errors error(s)"
+            exit 1
+          fi
+          echo "✅ All skills validated"
+
+      - name: Validate Commands
+        run: |
+          errors=0
+          for cmd_file in commands/*.md; do
+            if [ ! -f "$cmd_file" ]; then
+              continue
+            fi
+            
+            # 检查 frontmatter
+            if ! head -20 "$cmd_file" | grep -q "^---"; then
+              echo "❌ Missing frontmatter in $cmd_file"
+              errors=$((errors + 1))
+            fi
+            
+            if ! head -20 "$cmd_file" | grep -q "name:"; then
+              echo "❌ Missing 'name' in frontmatter of $cmd_file"
+              errors=$((errors + 1))
+            fi
+            
+            if ! head -20 "$cmd_file" | grep -q "roles:"; then
+              echo "❌ Missing 'roles' in frontmatter of $cmd_file"
+              errors=$((errors + 1))
+            fi
+          done
+          
+          if [ $errors -gt 0 ]; then
+            exit 1
+          fi
+          echo "✅ All commands validated"
+
+      - name: Security Scan
+        run: |
+          errors=0
+          for skill_dir in skills/*/; do
+            skill_file="$skill_dir/SKILL.md"
+            if [ -f "$skill_file" ]; then
+              content=$(cat "$skill_file")
+              
+              # 检查危险模式
+              if echo "$content" | grep -qiE "eval\s*\(|exec\s*\(|child_process|rm\s+-rf.*\/"; then
+                echo "⚠️  Potential dangerous pattern in $skill_file"
+                errors=$((errors + 1))
+              fi
+              
+              # 检查硬编码 secrets
+              if echo "$content" | grep -qiE "(API_KEY|TOKEN|SECRET)\s*[:=]\s*[\"']\w+"; then
+                echo "⚠️  Potential hardcoded secret in $skill_file"
+                errors=$((errors + 1))
+              fi
+            fi
+          done
+          
+          if [ $errors -gt 0 ]; then
+            echo "❌ Security scan found issues"
+            exit 1
+          fi
+          echo "✅ Security scan passed"
+
+      - name: Validate MCPs
+        run: |
+          errors=0
+          for mcp_file in mcp/*.json; do
+            if [ ! -f "$mcp_file" ]; then
+              continue
+            fi
+            
+            if ! node -e "
+              const fs = require('fs');
+              const config = JSON.parse(fs.readFileSync('$mcp_file'));
+              const required = ['name', 'description', 'version', 'roles', 'agents', 'security_approved'];
+              for (const field of required) {
+                if (config[field] === undefined) {
+                  console.log('❌ Missing field: ' + field + ' in $mcp_file');
+                  process.exit(1);
+                }
+              }
+              if (!config.security_approved) {
+                console.log('⚠️  MCP not security approved: ' + config.name);
+              }
+            "; then
+              errors=$((errors + 1))
+            fi
+          done
+          
+          if [ $errors -gt 0 ]; then
+            exit 1
+          fi
+          echo "✅ All MCPs validated"
+
+      - name: Build Check
+        run: |
+          npm run build
+          echo "✅ Build successful"

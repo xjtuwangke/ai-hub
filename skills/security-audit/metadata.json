@@ -1,0 +1,24 @@
+{
+  "name": "security-audit",
+  "version": "1.5.0",
+  "description": "OWASP Top 10 security auditing and vulnerability scanning",
+  "tags": [
+    "qa",
+    "dev",
+    "security",
+    "audit",
+    "owasp"
+  ],
+  "roles": [
+    "qa",
+    "dev"
+  ],
+  "agents": [
+    "opencode",
+    "claude"
+  ],
+  "author": "platform-team",
+  "security_grade": "A",
+  "last_updated": "2026-05-20",
+  "changelog_file": "CHANGELOG.md"
+}

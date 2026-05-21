@@ -1,0 +1,24 @@
+{
+  "name": "data-migration",
+  "version": "1.1.0",
+  "description": "Database migration strategies and zero-downtime patterns",
+  "tags": [
+    "dev",
+    "devops",
+    "data",
+    "migration",
+    "database"
+  ],
+  "roles": [
+    "dev",
+    "devops"
+  ],
+  "agents": [
+    "opencode",
+    "claude"
+  ],
+  "author": "platform-team",
+  "security_grade": "A",
+  "last_updated": "2026-05-20",
+  "changelog_file": "CHANGELOG.md"
+}

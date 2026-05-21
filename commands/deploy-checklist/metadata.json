@@ -1,0 +1,11 @@
+{
+  "name": "/deploy-checklist",
+  "version": "2.0.0",
+  "description": "Pre-deployment checklist for safe production releases",
+  "roles": ["devops", "dev"],
+  "agents": ["opencode", "claude"],
+  "tags": ["deploy", "devops", "checklist"],
+  "dependencies": ["ci-cd-pipeline", "infrastructure-as-code"],
+  "author": "platform-team",
+  "last_updated": "2026-05-20"
+}

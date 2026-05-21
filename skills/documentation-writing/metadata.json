@@ -1,0 +1,25 @@
+{
+  "name": "documentation-writing",
+  "version": "1.4.0",
+  "description": "Technical documentation standards and templates",
+  "tags": [
+    "ba",
+    "dev",
+    "documentation",
+    "writing",
+    "communication"
+  ],
+  "roles": [
+    "ba",
+    "dev"
+  ],
+  "agents": [
+    "opencode",
+    "copilot",
+    "claude"
+  ],
+  "author": "platform-team",
+  "security_grade": "A",
+  "last_updated": "2026-05-20",
+  "changelog_file": "CHANGELOG.md"
+}
