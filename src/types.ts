@@ -106,6 +106,9 @@ export interface CliOptions {
   repo?: string;
   branch?: string;
   github_host?: string;
+  skills?: string[];
+  commands?: string[];
+  mcps?: string[];
 }
 
 export interface DetectedAgent {

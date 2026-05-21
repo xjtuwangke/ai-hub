@@ -49,27 +49,25 @@ export async function loadCatalog(ctx: UserContext, token?: string): Promise<Hub
   return catalog;
 }
 
-function matchesRole(item: { roles: string[] }, ctx: UserContext): boolean {
-  return item.roles.includes(ctx.role) || item.roles.includes('all');
-}
-
 function matchesAgents(item: { agents: string[] }, ctx: UserContext): boolean {
   const userAgents = ctx.agents.map((a) => a.type);
   return item.agents.some((a) => userAgents.includes(a as AgentType));
 }
 
-function matchesTags(item: { tags: string[] }, tags?: string[]): boolean {
+function matchesTags(item: { tags: string[]; roles?: string[] }, tags?: string[]): boolean {
   if (!tags || tags.length === 0) return true;
-  return tags.some((t) => item.tags.includes(t));
+  const allTags = [...item.tags, ...(item.roles || [])];
+  return tags.some((t) => allTags.includes(t));
 }
 
-function matchesSearch(item: { name: string; description: string; tags: string[] }, search?: string): boolean {
+function matchesSearch(item: { name: string; description: string; tags: string[]; roles?: string[] }, search?: string): boolean {
   if (!search) return true;
   const lower = search.toLowerCase();
   return (
     item.name.toLowerCase().includes(lower) ||
     item.description.toLowerCase().includes(lower) ||
-    item.tags.some((t) => t.toLowerCase().includes(lower))
+    item.tags.some((t) => t.toLowerCase().includes(lower)) ||
+    (item.roles || []).some((r) => r.toLowerCase().includes(lower))
   );
 }
 
@@ -81,7 +79,6 @@ export function filterSkills(
   return items.filter((item) => {
     const m = item.metadata;
     return (
-      matchesRole(m, ctx) &&
       matchesAgents(m, ctx) &&
       matchesTags(m, options?.tags) &&
       matchesSearch(m, options?.search)
@@ -97,7 +94,6 @@ export function filterCommands(
   return items.filter((item) => {
     const m = item.metadata;
     return (
-      matchesRole(m, ctx) &&
       matchesAgents(m, ctx) &&
       matchesTags(m, options?.tags) &&
       matchesSearch(m, options?.search)
@@ -113,7 +109,6 @@ export function filterMcps(
   return items.filter((item) => {
     const c = item.config;
     return (
-      matchesRole(c, ctx) &&
       matchesAgents(c, ctx) &&
       matchesTags(c, options?.tags) &&
       matchesSearch(c, options?.search)
@@ -382,11 +377,6 @@ export function resolveCommandDependencies(
       const skill = allCatalogSkills.find((s) => s.name === depName);
       if (!skill) {
         warnings.push(`Command "${cmd.metadata.name}" depends on skill "${depName}" which is not found in catalog`);
-        continue;
-      }
-
-      if (!matchesRole(skill.metadata, ctx)) {
-        warnings.push(`Command "${cmd.metadata.name}" depends on skill "${depName}" which is not available for your role "${ctx.role}"`);
         continue;
       }
 

@@ -37,8 +37,8 @@ program
   .option('--branch <branch>', 'GitHub branch', 'main')
   .option('--github-host <host>', 'GitHub Enterprise host', 'github.com');
 
-function parseOptions(cmd: Command): CliOptions {
-  const opts = cmd.opts();
+function parseOptions(globalCmd: Command, subCmdOpts?: Record<string, any>): CliOptions {
+  const opts = globalCmd.opts();
   return {
     role: opts.role,
     agents: opts.agents?.split(',') as CliOptions['agents'],
@@ -50,6 +50,9 @@ function parseOptions(cmd: Command): CliOptions {
     repo: opts.repo,
     branch: opts.branch,
     github_host: opts.githubHost,
+    skills: subCmdOpts?.skill,
+    commands: subCmdOpts?.command,
+    mcps: subCmdOpts?.mcp,
   };
 }
 
@@ -59,9 +62,11 @@ async function selectItemsInteractively<T extends { metadata: { name: string; de
 ): Promise<T[]> {
   if (items.length === 0) return [];
 
+  console.clear();
+
   const choices = items.map((item) => ({
-    name: `${item.metadata.name} ${c.version(item.metadata.version)} - ${item.metadata.description.slice(0, 50)}`,
-    value: item,
+    name: `${item.metadata.name} v${item.metadata.version}`,
+    value: item.metadata.name,
     checked: true,
   }));
 
@@ -71,11 +76,12 @@ async function selectItemsInteractively<T extends { metadata: { name: string; de
       name: 'selected',
       message: `Select ${itemType} to install (Space to toggle, Enter to confirm):`,
       choices,
-      pageSize: 15,
+      pageSize: 20,
+      loop: false,
     },
   ]);
 
-  return selected;
+  return items.filter((item) => selected.includes(item.metadata.name));
 }
 
 program
@@ -86,11 +92,14 @@ program
   .option('--skills-only', 'Install only skills')
   .option('--commands-only', 'Install only commands')
   .option('--mcps-only', 'Install only MCPs')
+  .option('--skill <names...>', 'Specific skills to install')
+  .option('--command <names...>', 'Specific commands to install')
+  .option('--mcp <names...>', 'Specific MCPs to install')
   .option('--tag <tag>', 'Filter by tag')
   .option('--search <query>', 'Search by name/description')
   .action(async (cmdOptions) => {
     try {
-      const options = parseOptions(program);
+      const options = parseOptions(program, cmdOptions);
       const ctx = await buildUserContext(options);
 
       printEnvironmentReport(ctx);
@@ -103,18 +112,57 @@ program
         process.exit(1);
       }
 
-      const filterOpts = {
-        tags: cmdOptions.tag ? [cmdOptions.tag] : undefined,
-        search: cmdOptions.search,
-      };
+      const hasExactSelection = options.skills || options.commands || options.mcps;
 
-      let skills = filterSkills(catalog.skills, ctx, filterOpts);
-      let commands = filterCommands(catalog.commands, ctx, filterOpts);
-      let mcps = filterMcps(catalog.mcps, ctx, filterOpts);
+      let skills: RemoteSkill[] = [];
+      let commands: RemoteCommand[] = [];
+      let mcps: RemoteMcp[] = [];
 
-      if (cmdOptions.skillsOnly) { commands = []; mcps = []; }
-      if (cmdOptions.commandsOnly) { skills = []; mcps = []; }
-      if (cmdOptions.mcpsOnly) { skills = []; commands = []; }
+      if (hasExactSelection) {
+        if (options.skills) {
+          for (const name of options.skills) {
+            const skill = catalog.skills.find((s) => s.name === name);
+            if (skill) {
+              skills.push(skill);
+            } else {
+              c.warning(`Skill not found: ${name}`);
+            }
+          }
+        }
+        if (options.commands) {
+          for (const name of options.commands) {
+            const cmd = catalog.commands.find((c) => c.name === name || c.metadata.name === name);
+            if (cmd) {
+              commands.push(cmd);
+            } else {
+              c.warning(`Command not found: ${name}`);
+            }
+          }
+        }
+        if (options.mcps) {
+          for (const name of options.mcps) {
+            const mcp = catalog.mcps.find((m) => m.name === name || m.config.name === name);
+            if (mcp) {
+              mcps.push(mcp);
+            } else {
+              c.warning(`MCP not found: ${name}`);
+            }
+          }
+        }
+      } else {
+        const filterOpts = {
+          tags: cmdOptions.tag ? [cmdOptions.tag] : undefined,
+          search: cmdOptions.search,
+        };
+
+        skills = filterSkills(catalog.skills, ctx, filterOpts);
+        commands = filterCommands(catalog.commands, ctx, filterOpts);
+        mcps = filterMcps(catalog.mcps, ctx, filterOpts);
+
+        if (cmdOptions.skillsOnly) { commands = []; mcps = []; }
+        if (cmdOptions.commandsOnly) { skills = []; mcps = []; }
+        if (cmdOptions.mcpsOnly) { skills = []; commands = []; }
+      }
 
       if (cmdOptions.interactive) {
         skills = await selectItemsInteractively(skills, 'skills');
@@ -294,6 +342,7 @@ program
   .alias('ls')
   .description('List available and installed content')
   .option('--installed', 'Show only installed content')
+  .option('--tags', 'List all available tags')
   .option('--tag <tag>', 'Filter by tag')
   .option('--search <query>', 'Search by name/description')
   .action(async (cmdOptions) => {
@@ -312,6 +361,16 @@ program
       if (!catalog) {
         c.error('Failed to load catalog');
         process.exit(1);
+      }
+
+      if (cmdOptions.tags) {
+        const allTags = new Set<string>();
+        catalog.skills.forEach((s) => s.metadata.tags.forEach((t) => allTags.add(t)));
+        catalog.commands.forEach((c) => c.metadata.tags.forEach((t) => allTags.add(t)));
+        catalog.mcps.forEach((m) => m.config.tags.forEach((t) => allTags.add(t)));
+        c.header(`Available Tags (${allTags.size})`);
+        console.log([...allTags].sort().join(', '));
+        return;
       }
 
       const filterOpts = {
