@@ -64,10 +64,8 @@ export interface HubConfig {
   github_host: string;
 }
 
-export interface ContentLockFile {
-  schema_version: string;
+export interface ContentLockEntry {
   name: string;
-  type: 'skill' | 'command' | 'mcp';
   version: string;
   installed_at: string;
   source: {
@@ -75,12 +73,19 @@ export interface ContentLockFile {
     repo?: string;
     path?: string;
   };
-  installed_by: string;
-  installer_version: string;
   agents: AgentType[];
   dependencies?: string[];
   tags?: string[];
   post_install_script?: PostInstallScript;
+}
+
+export interface AggregatedLockFile {
+  schema_version: string;
+  type: 'skill' | 'command';
+  installed_at: string;
+  installer: string;
+  installer_version: string;
+  items: ContentLockEntry[];
 }
 
 export interface InstallRecord {

@@ -3,7 +3,7 @@ import ora, { Ora } from 'ora';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import YAML from 'yaml';
-import { CommandMetadata, ChangelogEntry } from './types';
+import { CommandMetadata, ChangelogEntry, AggregatedLockFile, ContentLockEntry } from './types';
 
 export const c = {
   info: (msg: string) => console.log(chalk.blue('ℹ'), msg),
@@ -225,58 +225,59 @@ export function formatTags(tags: string[], limit = 3): string {
   return tags.slice(0, limit).map((t) => c.tag(t)).join(' ');
 }
 
-export async function writeContentLock(
-  installDir: string,
-  lock: {
-    name: string;
-    type: 'skill' | 'command' | 'mcp';
-    version: string;
-    source_url: string;
-    agents: string[];
-    dependencies?: string[];
-    tags?: string[];
-    post_install_script?: unknown;
-  }
-): Promise<void> {
-  const lockFileName = lock.type === 'skill' ? '.skill-lock.json' : `.${lock.type}-lock.json`;
-  const lockPath = path.join(installDir, lockFileName);
+export function getSkillsDir(): string {
+  const home = process.env.HOME || process.env.USERPROFILE || '.';
+  return path.join(home, '.agents', 'skills');
+}
 
-  const content = {
+export function getCommandsDir(): string {
+  const home = process.env.HOME || process.env.USERPROFILE || '.';
+  return path.join(home, '.agents', 'commands');
+}
+
+function getAggregatedLockPath(type: 'skill' | 'command'): string {
+  const baseDir = type === 'skill' ? getSkillsDir() : getCommandsDir();
+  const fileName = type === 'skill' ? '.skill-lock.json' : '.command-lock.json';
+  return path.join(baseDir, fileName);
+}
+
+export async function readAggregatedLock(type: 'skill' | 'command'): Promise<AggregatedLockFile | null> {
+  return readJson<AggregatedLockFile>(getAggregatedLockPath(type));
+}
+
+export async function writeAggregatedLock(type: 'skill' | 'command', items: ContentLockEntry[]): Promise<void> {
+  const lock: AggregatedLockFile = {
     schema_version: '1.0',
-    name: lock.name,
-    type: lock.type,
-    version: lock.version,
+    type,
     installed_at: new Date().toISOString(),
-    source: {
-      url: lock.source_url,
-    },
-    installed_by: 'ai-hub',
+    installer: 'ai-hub',
     installer_version: '1.0.0',
-    agents: lock.agents,
-    ...(lock.dependencies && lock.dependencies.length > 0 ? { dependencies: lock.dependencies } : {}),
-    ...(lock.tags && lock.tags.length > 0 ? { tags: lock.tags } : {}),
-    ...(lock.post_install_script ? { post_install_script: lock.post_install_script } : {}),
+    items,
   };
-
-  await fs.writeFile(lockPath, JSON.stringify(content, null, 2));
+  await writeJson(getAggregatedLockPath(type), lock);
 }
 
-export async function readContentLock(
-  installDir: string,
-  type: 'skill' | 'command' | 'mcp'
-): Promise<Record<string, unknown> | null> {
-  const lockFileName = type === 'skill' ? '.skill-lock.json' : `.${type}-lock.json`;
-  const lockPath = path.join(installDir, lockFileName);
-  return readJson<Record<string, unknown>>(lockPath);
-}
-
-export async function removeContentLock(
-  installDir: string,
-  type: 'skill' | 'command' | 'mcp'
+export async function addToAggregatedLock(
+  type: 'skill' | 'command',
+  entry: ContentLockEntry
 ): Promise<void> {
-  const lockFileName = type === 'skill' ? '.skill-lock.json' : `.${type}-lock.json`;
-  const lockPath = path.join(installDir, lockFileName);
-  if (await fs.pathExists(lockPath)) {
-    await fs.remove(lockPath);
+  const lock = await readAggregatedLock(type);
+  const items: ContentLockEntry[] = lock?.items || [];
+  const existing = items.findIndex((i: ContentLockEntry) => i.name === entry.name);
+  if (existing >= 0) {
+    items[existing] = entry;
+  } else {
+    items.push(entry);
   }
+  await writeAggregatedLock(type, items);
+}
+
+export async function removeFromAggregatedLock(
+  type: 'skill' | 'command',
+  name: string
+): Promise<void> {
+  const lock = await readAggregatedLock(type);
+  if (!lock) return;
+  const items = lock.items.filter((i: ContentLockEntry) => i.name !== name);
+  await writeAggregatedLock(type, items);
 }

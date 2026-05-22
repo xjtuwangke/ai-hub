@@ -1,24 +1,21 @@
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import { AgentPaths, AgentAdapter } from '../types';
-import { ensureDir, readJson, writeJson, c } from '../utils';
+import { ensureDir, readJson, writeJson, c, getSkillsDir } from '../utils';
 
 export const adapter: AgentAdapter = {
-  async installSkill(skillName: string, skillDir: string, paths: AgentPaths, _isGlobal: boolean): Promise<void> {
-    const targetDir = paths.skills[0] || '.github/skills';
-    await ensureDir(targetDir);
-    const targetPath = path.join(targetDir, skillName);
-    await fs.copy(skillDir, targetPath, { overwrite: true });
+  async installSkill(skillName: string, skillDir: string, _paths: AgentPaths, _isGlobal: boolean): Promise<void> {
+    const targetDir = path.join(getSkillsDir(), skillName);
+    await ensureDir(path.dirname(targetDir));
+    await fs.copy(skillDir, targetDir, { overwrite: true });
     c.sub(`[Copilot] skill installed: ${skillName}`);
   },
 
-  async uninstallSkill(skillName: string, paths: AgentPaths): Promise<void> {
-    for (const basePath of paths.skills) {
-      const skillPath = path.join(basePath, skillName);
-      if (await fs.pathExists(skillPath)) {
-        await fs.remove(skillPath);
-        c.sub(`[Copilot] skill removed: ${skillName}`);
-      }
+  async uninstallSkill(skillName: string, _paths: AgentPaths): Promise<void> {
+    const skillPath = path.join(getSkillsDir(), skillName);
+    if (await fs.pathExists(skillPath)) {
+      await fs.remove(skillPath);
+      c.sub(`[Copilot] skill removed: ${skillName}`);
     }
   },
 
@@ -58,11 +55,10 @@ export const adapter: AgentAdapter = {
     const skills: string[] = [];
     const mcps: string[] = [];
 
-    for (const skillPath of paths.skills) {
-      if (await fs.pathExists(skillPath)) {
-        const dirs = await fs.readdir(skillPath);
-        skills.push(...dirs.filter((d) => fs.statSync(path.join(skillPath, d)).isDirectory()));
-      }
+    const skillsDir = getSkillsDir();
+    if (await fs.pathExists(skillsDir)) {
+      const dirs = await fs.readdir(skillsDir);
+      skills.push(...dirs.filter((d) => fs.statSync(path.join(skillsDir, d)).isDirectory()));
     }
 
     for (const configPath of paths.config_file || []) {
