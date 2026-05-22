@@ -143,6 +143,95 @@ Generate comprehensive API test cases covering functional, boundary, and error s
 - Initial release
 ```
 
+## Post-Install Scripts
+
+Skills and commands can optionally include a **post-install script** that runs automatically after installation completes.
+
+### Why Use Post-Install Scripts?
+
+- Validate required tools (e.g., check if `jest` or `docker` is installed)
+- Create sample configuration files (e.g., `api-test-config.json`)
+- Set up directory structures (e.g., `test-plans/` folder)
+- Initialize databases or environment variables
+- Generate boilerplate code or templates
+
+### Script Requirements
+
+- Must be compatible with **Node.js** (`.js`, `.mjs`, `.cjs`) or **TypeScript** (`.ts` via `ts-node`)
+- Must pass security scanning (no `eval`, `exec` with user input, etc.)
+- Should be idempotent (safe to run multiple times)
+- Should exit with code 0 on success, non-zero on failure
+
+### How to Add a Post-Install Script
+
+Add the `post_install_script` field to your `metadata.json`:
+
+```json
+{
+  "name": "api-testing",
+  "version": "1.2.0",
+  "post_install_script": {
+    "file": "post-install.js",
+    "engine": "node",
+    "description": "Validates testing tools and creates sample config"
+  }
+}
+```
+
+Place the script file in the same directory:
+
+```
+skills/api-testing/
+├── metadata.json
+├── SKILL.md
+└── post-install.js    ← Post-install script
+```
+
+### Script Engines
+
+| Engine | File Extension | Command Used |
+|--------|---------------|--------------|
+| `node` | `.js`, `.mjs`, `.cjs` | `node <file>` |
+| `ts-node` | `.ts` | `npx ts-node <file>` |
+
+### Script Examples
+
+#### Example 1: Validate Tools (JavaScript)
+
+```javascript
+const { execSync } = require('child_process');
+
+try {
+  execSync('npx jest --version', { stdio: 'pipe' });
+  console.log('Jest is available');
+} catch {
+  console.log('Jest not found. Install with: npm install --save-dev jest');
+}
+```
+
+#### Example 2: Create Config Files (TypeScript)
+
+```typescript
+import * as fs from 'fs';
+import * as path from 'path';
+
+const config = {
+  baseUrl: 'http://localhost:3000',
+  timeout: 5000
+};
+
+fs.writeFileSync('api-test-config.json', JSON.stringify(config, null, 2));
+console.log('Created api-test-config.json');
+```
+
+### Execution Order
+
+1. Content is downloaded from GitHub
+2. Security scan runs on the script
+3. Script is saved to `~/.config/ai-hub/cache/scripts/`
+4. Script is executed with `node` or `npx ts-node`
+5. Installation continues regardless of script success/failure
+
 ## Command Format
 
 Each command is a flat directory with two files, similar to skills.

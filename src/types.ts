@@ -1,5 +1,11 @@
 export type AgentType = 'opencode' | 'copilot' | 'codex' | 'claude' | 'cursor' | 'windsurf';
 
+export interface PostInstallScript {
+  file: string;
+  engine?: 'node' | 'ts-node';
+  description?: string;
+}
+
 export interface SkillMetadata {
   name: string;
   version: string;
@@ -12,6 +18,7 @@ export interface SkillMetadata {
   security_grade?: 'A' | 'B' | 'C' | 'F';
   last_updated: string;
   changelog_file?: string;
+  post_install_script?: PostInstallScript;
 }
 
 export interface CommandMetadata {
@@ -25,6 +32,7 @@ export interface CommandMetadata {
   author?: string;
   last_updated: string;
   changelog_file?: string;
+  post_install_script?: PostInstallScript;
 }
 
 export interface ChangelogEntry {

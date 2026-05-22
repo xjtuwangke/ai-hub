@@ -21,5 +21,10 @@
   "author": "platform-team",
   "security_grade": "A",
   "last_updated": "2026-05-20",
-  "changelog_file": "CHANGELOG.md"
+  "changelog_file": "CHANGELOG.md",
+  "post_install_script": {
+    "file": "post-install.js",
+    "engine": "node",
+    "description": "Validates testing tools and creates sample config"
+  }
 }

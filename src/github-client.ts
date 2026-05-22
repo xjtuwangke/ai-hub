@@ -23,7 +23,7 @@ function getApiBaseUrl(config: HubConfig): string {
   return `https://${host}/api/v3/repos/${config.owner}/${config.repo}`;
 }
 
-async function fetchText(url: string, token?: string): Promise<string | null> {
+export async function fetchText(url: string, token?: string): Promise<string | null> {
   const headers: Record<string, string> = {
     Accept: 'application/vnd.github.v3+json',
   };
