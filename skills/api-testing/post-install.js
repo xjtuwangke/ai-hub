@@ -3,65 +3,55 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
 
-console.log('🔧 Running api-testing post-install script...');
+console.log('Running api-testing post-install script...');
 
-// Check if Jest is available globally or locally
-function checkJest() {
-  try {
-    execSync('npx jest --version', { stdio: 'pipe' });
-    console.log('✅ Jest is available');
-    return true;
-  } catch {
-    console.log('⚠️  Jest not found. You can install it later with: npm install --save-dev jest');
-    return false;
-  }
-}
-
-// Check if Postman CLI ( Newman ) is available
-function checkNewman() {
-  try {
-    execSync('npx newman --version', { stdio: 'pipe' });
-    console.log('✅ Newman (Postman CLI) is available');
-    return true;
-  } catch {
-    console.log('⚠️  Newman not found. Install with: npm install -g newman');
-    return false;
-  }
-}
-
-// Create a sample test configuration file
 function createSampleConfig() {
   const configPath = path.join(process.cwd(), 'api-test-config.json');
   const config = {
     baseUrl: 'http://localhost:3000',
     timeout: 5000,
     retries: 3,
-    headers: {
-      'Content-Type': 'application/json'
-    }
+    headers: { 'Content-Type': 'application/json' }
   };
   
   if (!fs.existsSync(configPath)) {
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-    console.log('📝 Created sample api-test-config.json');
+    console.log('Created sample api-test-config.json');
   }
 }
 
-// Main execution
+function createSampleTest() {
+  const testDir = path.join(process.cwd(), 'tests');
+  if (!fs.existsSync(testDir)) {
+    fs.mkdirSync(testDir, { recursive: true });
+    console.log('Created tests/ directory');
+  }
+  
+  const testPath = path.join(testDir, 'api-example.test.js');
+  const testContent = `describe('API Tests', () => {
+  test('should return 200 on health check', async () => {
+    const res = await fetch('http://localhost:3000/health');
+    expect(res.status).toBe(200);
+  });
+});
+`;
+  if (!fs.existsSync(testPath)) {
+    fs.writeFileSync(testPath, testContent);
+    console.log('Created sample test: tests/api-example.test.js');
+  }
+}
+
 (async () => {
   try {
-    console.log('\n📋 API Testing Skill - Post Install Setup\n');
-    
-    checkJest();
-    checkNewman();
+    console.log('\nAPI Testing Skill - Post Install Setup\n');
     createSampleConfig();
-    
-    console.log('\n✅ Post-install setup complete!');
-    console.log('💡 Tip: Customize api-test-config.json for your project\n');
+    createSampleTest();
+    console.log('\nPost-install setup complete!');
+    console.log('Tip: Customize api-test-config.json for your project');
+    console.log('Tip: Run tests with: npx jest\n');
   } catch (error) {
-    console.error('❌ Post-install script failed:', error.message);
+    console.error('Post-install script failed:', error.message);
     process.exit(1);
   }
 })();

@@ -28,30 +28,23 @@ function writeConfig(dir: string): void {
   console.log(`Wrote security config to: ${configPath}`);
 }
 
-function createAuditScript(dir: string): void {
-  const script = `#!/usr/bin/env node
-const fs = require('fs');
-const { execSync } = require('child_process');
+function createChecklist(dir: string): void {
+  const checklist = `# Security Audit Checklist
 
-console.log('Running security audit...');
-
-// Run npm audit
-try {
-  const result = execSync('npm audit --json', { encoding: 'utf-8', stdio: 'pipe' });
-  const audit = JSON.parse(result);
-  console.log(\`Vulnerabilities found: \${audit.metadata.vulnerabilities.total}\`);
-} catch {
-  console.log('npm audit completed');
-}
+- [ ] SQL Injection checks
+- [ ] XSS prevention
+- [ ] CSRF tokens
+- [ ] Authentication validation
+- [ ] Input sanitization
+- [ ] Dependency vulnerability scan
 `;
-  const scriptPath = path.join(dir, 'run-audit.js');
-  fs.writeFileSync(scriptPath, script);
-  fs.chmodSync(scriptPath, 0o755);
-  console.log(`Created audit script: ${scriptPath}`);
+  const checklistPath = path.join(dir, 'checklist.md');
+  fs.writeFileSync(checklistPath, checklist);
+  console.log(`Created checklist: ${checklistPath}`);
 }
 
 console.log('Setting up security-audit skill...');
 const dir = setupSecurityDir();
 writeConfig(dir);
-createAuditScript(dir);
+createChecklist(dir);
 console.log('security-audit setup complete!');
