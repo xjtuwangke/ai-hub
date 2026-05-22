@@ -14,16 +14,6 @@ export const c = {
   header: (msg: string) => console.log('\n' + chalk.bold.cyan('▶'), chalk.bold(msg)),
   sub: (msg: string) => console.log('  ' + chalk.gray(msg)),
   bullet: (label: string, value: string) => console.log(`  ${chalk.cyan('•')} ${label}: ${chalk.white(value)}`),
-  role: (role: string) => {
-    const colors: Record<string, string> = {
-      dev: chalk.blue.bold(role),
-      qa: chalk.green.bold(role),
-      ba: chalk.yellow.bold(role),
-      devops: chalk.magenta.bold(role),
-      all: chalk.white.bold(role),
-    };
-    return colors[role] || chalk.white(role);
-  },
   agent: (agent: string) => {
     const colors: Record<string, string> = {
       opencode: chalk.hex('#FF6B6B')(agent),

@@ -267,11 +267,10 @@ async function installMcpItem(
   };
 }
 
-export async function saveLockFile(role: string, records: InstallRecord[]): Promise<void> {
+export async function saveLockFile(records: InstallRecord[]): Promise<void> {
   const lock: LockFile = {
     version: '1.0',
     installed_at: new Date().toISOString(),
-    user_role: role as UserContext['role'],
     items: records,
   };
 

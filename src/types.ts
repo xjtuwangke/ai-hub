@@ -1,5 +1,3 @@
-export type UserRole = 'dev' | 'ba' | 'qa' | 'devops' | 'all';
-
 export type AgentType = 'opencode' | 'copilot' | 'codex' | 'claude' | 'cursor' | 'windsurf';
 
 export interface SkillMetadata {
@@ -7,7 +5,6 @@ export interface SkillMetadata {
   version: string;
   description: string;
   tags: string[];
-  roles: UserRole[];
   agents: AgentType[];
   author?: string;
   dependencies?: string[];
@@ -21,7 +18,6 @@ export interface CommandMetadata {
   name: string;
   version: string;
   description: string;
-  roles: UserRole[];
   agents: AgentType[];
   tags: string[];
   dependencies?: string[];
@@ -45,7 +41,6 @@ export interface McpServerConfig {
   args?: string[];
   env?: Record<string, string>;
   url?: string;
-  roles: UserRole[];
   agents: AgentType[];
   tags: string[];
   env_required?: string[];
@@ -74,7 +69,6 @@ export interface InstallRecord {
 export interface LockFile {
   version: string;
   installed_at: string;
-  user_role: UserRole;
   items: InstallRecord[];
 }
 
@@ -96,7 +90,6 @@ export interface AgentAdapter {
 }
 
 export interface CliOptions {
-  role?: UserRole;
   agents?: AgentType[];
   global?: boolean;
   yes?: boolean;
@@ -119,7 +112,6 @@ export interface DetectedAgent {
 }
 
 export interface UserContext {
-  role: UserRole;
   agents: DetectedAgent[];
   hub_config: HubConfig;
   home_dir: string;
@@ -151,7 +143,6 @@ export interface HubCatalog {
 }
 
 export interface FilterOptions {
-  role?: UserRole;
   agents?: AgentType[];
   tags?: string[];
   search?: string;

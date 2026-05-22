@@ -2,7 +2,6 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import { execSync } from 'child_process';
 import {
-  UserRole,
   AgentType,
   DetectedAgent,
   AgentPaths,
@@ -12,49 +11,6 @@ import {
 } from './types';
 import { expandHome, readJson, c } from './utils';
 import chalk from 'chalk';
-
-export async function detectRole(options: CliOptions): Promise<UserRole> {
-  if (options.role) {
-    c.info(`Using role from CLI: ${c.role(options.role)}`);
-    return options.role;
-  }
-
-  const envRole = process.env.AI_HUB_ROLE as UserRole;
-  if (envRole && ['dev', 'ba', 'qa', 'devops', 'all'].includes(envRole)) {
-    c.info(`Using role from env: ${c.role(envRole)}`);
-    return envRole;
-  }
-
-  const ghRole = await detectRoleFromGitHubTeams();
-  if (ghRole) {
-    c.info(`Detected role from GitHub Teams: ${c.role(ghRole)}`);
-    return ghRole;
-  }
-
-  c.warning('No role detected, defaulting to: all');
-  return 'all';
-}
-
-async function detectRoleFromGitHubTeams(): Promise<UserRole | null> {
-  const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
-  if (!token) return null;
-
-  try {
-    const result = execSync('gh api user/teams --jq ".[].slug"', {
-      encoding: 'utf-8',
-      env: { ...process.env, GH_TOKEN: token },
-    });
-    const teams = result.split('\n').filter(Boolean);
-
-    if (teams.some((t) => t.includes('qa') || t.includes('test'))) return 'qa';
-    if (teams.some((t) => t.includes('ba') || t.includes('product'))) return 'ba';
-    if (teams.some((t) => t.includes('devops') || t.includes('sre'))) return 'devops';
-    if (teams.some((t) => t.includes('dev') || t.includes('eng'))) return 'dev';
-    return null;
-  } catch {
-    return null;
-  }
-}
 
 const AGENT_DEFINITIONS: Array<{
   type: AgentType;
@@ -200,14 +156,12 @@ export async function loadHubConfig(): Promise<HubConfig> {
 }
 
 export async function buildUserContext(options: CliOptions): Promise<UserContext> {
-  const [role, agents, hubConfig] = await Promise.all([
-    detectRole(options),
+  const [agents, hubConfig] = await Promise.all([
     detectInstalledAgents(options),
     loadHubConfig(),
   ]);
 
   return {
-    role,
     agents,
     hub_config: hubConfig,
     home_dir: process.env.HOME || process.env.USERPROFILE || '.',
@@ -217,7 +171,6 @@ export async function buildUserContext(options: CliOptions): Promise<UserContext
 
 export function printEnvironmentReport(ctx: UserContext): void {
   c.header('Environment Report');
-  c.bullet('Current Role', c.role(ctx.role));
   c.bullet('Working Directory', ctx.cwd);
   c.bullet('Hub Repository', `${ctx.hub_config.owner}/${ctx.hub_config.repo}@${ctx.hub_config.branch}`);
 

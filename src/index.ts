@@ -26,7 +26,6 @@ program
   .name('ai-hub')
   .description('AI Skill/Command/MCP distribution manager for enterprise teams')
   .version('1.0.0')
-  .option('-r, --role <role>', 'User role (dev/ba/qa/devops/all)')
   .option('-a, --agents <agents>', 'Comma-separated agent list (opencode,copilot,codex,claude)')
   .option('-g, --global', 'Install to global directory', true)
   .option('-y, --yes', 'Auto-confirm without prompts')
@@ -40,7 +39,6 @@ program
 function parseOptions(globalCmd: Command, subCmdOpts?: Record<string, any>): CliOptions {
   const opts = globalCmd.opts();
   return {
-    role: opts.role,
     agents: opts.agents?.split(',') as CliOptions['agents'],
     global: opts.global,
     yes: opts.yes,
@@ -87,7 +85,7 @@ async function selectItemsInteractively<T extends { metadata: { name: string; de
 program
   .command('install')
   .alias('i')
-  .description('Install skills, commands, and MCPs matching your role and agents')
+  .description('Install skills, commands, and MCPs matching your agents')
   .option('--interactive', 'Use interactive TUI to select items')
   .option('--skills-only', 'Install only skills')
   .option('--commands-only', 'Install only commands')
@@ -230,7 +228,7 @@ program
         if (record) records.push(record);
       }
 
-      await saveLockFile(ctx.role, records);
+      await saveLockFile(records);
 
       c.header('Installation complete');
       c.success(`Installed ${records.length} items`);
@@ -300,7 +298,7 @@ program
         if (record) records.push(record);
       }
 
-      await saveLockFile(ctx.role, records);
+      await saveLockFile(records);
       c.success('Update complete');
     } catch (error) {
       c.error(`Update failed: ${error}`);
@@ -526,7 +524,6 @@ program
       if (lockFile) {
         c.header('Lock File Info');
         c.bullet('Installed at', lockFile.installed_at);
-        c.bullet('Role', lockFile.user_role);
         c.bullet('Items', `${lockFile.items.length}`);
       }
     } catch (error) {
