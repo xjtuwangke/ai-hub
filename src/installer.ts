@@ -25,7 +25,7 @@ import {
   c,
 } from './utils';
 import { getAdapter } from './agents';
-import { execSync } from 'child_process';
+import { spawn } from 'child_process';
 import { fetchCatalog, fetchSkillContent, fetchCommandContent, fetchText } from './github-client';
 
 export async function loadCatalog(ctx: UserContext, token?: string): Promise<HubCatalog | null> {
@@ -144,50 +144,63 @@ export async function installItem(
 async function runPostInstallScript(
   item: RemoteSkill | RemoteCommand,
   type: 'skill' | 'command',
-  script: { file: string; engine?: string; description?: string },
+  script: { cmd: string[]; description?: string },
+  downloadDir: string,
   token: string | undefined,
   spinner: ReturnType<typeof startSpinner>
 ): Promise<boolean> {
-  if (!script || !script.file) return true;
+  if (!script || !script.cmd || script.cmd.length === 0) return true;
 
-  updateSpinner(`Running post-install script: ${script.file}`);
+  const cmdStr = script.cmd.join(' ');
+  updateSpinner(`Running post-install: ${cmdStr}`);
 
   try {
-    const scriptUrl = `${(item as any).raw_base_url || (item as any).raw_url}/${script.file}`;
-    const scriptContent = await fetchText(scriptUrl, token);
+    const baseUrl = (item as any).raw_base_url || (item as any).raw_url;
 
-    if (!scriptContent) {
-      c.warning(`Post-install script not found: ${script.file}`);
-      return true;
+    for (const arg of script.cmd) {
+      if (arg.match(/\.(js|ts|mjs|cjs|json|yaml|yml|sh)$/)) {
+        const fileUrl = `${baseUrl}/${arg}`;
+        const content = await fetchText(fileUrl, token);
+        if (content) {
+          const filePath = path.join(downloadDir, arg);
+          await ensureDir(path.dirname(filePath));
+          await fs.writeFile(filePath, content);
+          await fs.chmod(filePath, 0o755);
+
+          const fileSecurity = scanSecurity(content);
+          if (!fileSecurity.safe) {
+            c.error(`Post-install file security scan failed: ${arg}`);
+            fileSecurity.issues.forEach((issue) => c.error(`  - ${issue}`));
+            return false;
+          }
+        }
+      }
     }
 
-    const scriptSecurity = scanSecurity(scriptContent);
-    if (!scriptSecurity.safe) {
-      c.error(`Post-install script security scan failed for ${script.file}`);
-      scriptSecurity.issues.forEach((issue) => c.error(`  - ${issue}`));
-      return false;
-    }
+    c.info(`Executing: ${cmdStr}`);
 
-    const cacheDir = getHubCacheDir();
-    const scriptDir = path.join(cacheDir, 'scripts', type, item.name);
-    await ensureDir(scriptDir);
+    return new Promise((resolve) => {
+      const child = spawn(script.cmd[0], script.cmd.slice(1), {
+        cwd: downloadDir,
+        stdio: 'inherit',
+        env: process.env,
+      });
 
-    const scriptPath = path.join(scriptDir, script.file);
-    await fs.writeFile(scriptPath, scriptContent);
-    await fs.chmod(scriptPath, 0o755);
+      child.on('close', (code) => {
+        if (code === 0) {
+          c.success(`Post-install completed: ${cmdStr}`);
+          resolve(true);
+        } else {
+          c.error(`Post-install exited with code ${code}: ${cmdStr}`);
+          resolve(false);
+        }
+      });
 
-    const engine = script.engine || 'node';
-    const runner = engine === 'ts-node' ? 'npx ts-node' : 'node';
-
-    c.info(`Executing post-install: ${runner} ${script.file}`);
-    execSync(`${runner} ${scriptPath}`, {
-      encoding: 'utf-8',
-      stdio: 'inherit',
-      cwd: scriptDir,
+      child.on('error', (err) => {
+        c.error(`Post-install failed: ${err.message}`);
+        resolve(false);
+      });
     });
-
-    c.success(`Post-install script completed: ${script.file}`);
-    return true;
   } catch (error: any) {
     c.error(`Post-install script failed: ${error.message || error}`);
     return false;
@@ -233,7 +246,7 @@ async function installSkillItem(
   }
 
   if (skill.metadata.post_install_script && !options.dryRun) {
-    const ok = await runPostInstallScript(skill, 'skill', skill.metadata.post_install_script, token, spinner);
+    const ok = await runPostInstallScript(skill, 'skill', skill.metadata.post_install_script, downloadDir, token, spinner);
     if (!ok) {
       c.warning(`Post-install failed for skill: ${skill.name}, but installation will continue`);
     }
@@ -270,6 +283,13 @@ async function installCommandItem(
     return null;
   }
 
+  const cacheDir = getHubCacheDir();
+  const downloadDir = path.join(cacheDir, 'downloads', cmd.name);
+  await ensureDir(downloadDir);
+
+  await fs.writeFile(path.join(downloadDir, 'COMMAND.md'), commandMd);
+  await fs.writeFile(path.join(downloadDir, 'metadata.json'), JSON.stringify(cmd.metadata, null, 2));
+
   for (const agent of ctx.agents) {
     if (!cmd.metadata.agents.includes(agent.type)) continue;
     try {
@@ -282,7 +302,7 @@ async function installCommandItem(
   }
 
   if (cmd.metadata.post_install_script && !options.dryRun) {
-    const ok = await runPostInstallScript(cmd, 'command', cmd.metadata.post_install_script, token, spinner);
+    const ok = await runPostInstallScript(cmd, 'command', cmd.metadata.post_install_script, downloadDir, token, spinner);
     if (!ok) {
       c.warning(`Post-install failed for command: ${cmd.name}, but installation will continue`);
     }

@@ -1,8 +1,7 @@
 export type AgentType = 'opencode' | 'copilot' | 'codex' | 'claude' | 'cursor' | 'windsurf';
 
 export interface PostInstallScript {
-  file: string;
-  engine?: 'node' | 'ts-node';
+  cmd: string[];
   description?: string;
 }
 

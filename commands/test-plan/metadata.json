@@ -9,8 +9,7 @@
   "author": "platform-team",
   "last_updated": "2026-05-20",
   "post_install_script": {
-    "file": "post-install.js",
-    "engine": "node",
-    "description": "Creates test plan templates and directory structure"
+    "cmd": ["node", "post-install.js"],
+    "description": "Creates test plan templates and directory"
   }
 }

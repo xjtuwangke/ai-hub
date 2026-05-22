@@ -171,9 +171,8 @@ Add the `post_install_script` field to your `metadata.json`:
   "name": "api-testing",
   "version": "1.2.0",
   "post_install_script": {
-    "file": "post-install.js",
-    "engine": "node",
-    "description": "Validates testing tools and creates sample config"
+    "cmd": ["node", "post-install.js"],
+    "description": "Creates sample config and test files"
   }
 }
 ```
@@ -187,33 +186,44 @@ skills/api-testing/
 └── post-install.js    ← Post-install script
 ```
 
-### Script Engines
+### CMD Array Format
 
-| Engine | File Extension | Command Used |
-|--------|---------------|--------------|
-| `node` | `.js`, `.mjs`, `.cjs` | `node <file>` |
-| `ts-node` | `.ts` | `npx ts-node <file>` |
+`cmd` is an array of strings representing the command and its arguments:
 
-### Script Examples
-
-#### Example 1: Validate Tools (JavaScript)
-
-```javascript
-const { execSync } = require('child_process');
-
-try {
-  execSync('npx jest --version', { stdio: 'pipe' });
-  console.log('Jest is available');
-} catch {
-  console.log('Jest not found. Install with: npm install --save-dev jest');
+```json
+{
+  "post_install_script": {
+    "cmd": ["node", "post-install.js"],
+    "description": "Run setup script"
+  }
 }
 ```
 
-#### Example 2: Create Config Files (TypeScript)
+```json
+{
+  "post_install_script": {
+    "cmd": ["npx", "ts-node", "setup.ts"],
+    "description": "Run TypeScript setup"
+  }
+}
+```
 
-```typescript
-import * as fs from 'fs';
-import * as path from 'path';
+```json
+{
+  "post_install_script": {
+    "cmd": ["npm", "install", "jest", "--save-dev"],
+    "description": "Install Jest for testing"
+  }
+}
+```
+
+### Script Examples
+
+#### Example 1: Create Config Files (JavaScript)
+
+```javascript
+const fs = require('fs');
+const path = require('path');
 
 const config = {
   baseUrl: 'http://localhost:3000',
@@ -224,12 +234,24 @@ fs.writeFileSync('api-test-config.json', JSON.stringify(config, null, 2));
 console.log('Created api-test-config.json');
 ```
 
+#### Example 2: Setup Directories (TypeScript)
+
+```typescript
+import * as fs from 'fs';
+
+const dir = './security';
+if (!fs.existsSync(dir)) {
+  fs.mkdirSync(dir, { recursive: true });
+  console.log('Created security/ directory');
+}
+```
+
 ### Execution Order
 
-1. Content is downloaded from GitHub
-2. Security scan runs on the script
-3. Script is saved to `~/.config/ai-hub/cache/scripts/`
-4. Script is executed with `node` or `npx ts-node`
+1. Content is downloaded from GitHub (including referenced script files)
+2. Security scan runs on all script files
+3. Script files are saved to the download directory
+4. CMD array is executed via `spawn(cmd[0], cmd[1:])`
 5. Installation continues regardless of script success/failure
 
 ## Command Format

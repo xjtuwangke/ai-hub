@@ -21,8 +21,7 @@
   "last_updated": "2026-05-20",
   "changelog_file": "CHANGELOG.md",
   "post_install_script": {
-    "file": "post-install.ts",
-    "engine": "ts-node",
-    "description": "Sets up security audit config and scripts"
+    "cmd": ["npx", "ts-node", "post-install.ts"],
+    "description": "Sets up security audit config and checklist"
   }
 }
