@@ -22,11 +22,34 @@ import {
   getLockFilePath,
   getHubCacheDir,
   getConfigDir,
+  writeContentLock,
+  readContentLock,
+  removeContentLock,
   c,
 } from './utils';
 import { getAdapter } from './agents';
 import { spawn } from 'child_process';
 import { fetchCatalog, fetchSkillContent, fetchCommandContent, fetchText } from './github-client';
+
+function resolveSkillPath(paths: string[], isGlobal: boolean, skillName: string): string {
+  let base: string;
+  if (isGlobal) {
+    base = paths.find((p) => p.includes('~/.config') || p.includes('~/.claude') || p.includes('~/.codex')) || paths[0];
+  } else {
+    base = paths.find((p) => !p.includes('~')) || paths[0];
+  }
+  return path.join(base, skillName);
+}
+
+function resolveCommandPath(paths: string[], isGlobal: boolean): string {
+  let base: string;
+  if (isGlobal) {
+    base = paths.find((p) => p.includes('~/.config') || p.includes('~/.claude') || p.includes('~/.codex')) || paths[0];
+  } else {
+    base = paths.find((p) => !p.includes('~')) || paths[0];
+  }
+  return base;
+}
 
 export async function loadCatalog(ctx: UserContext, token?: string): Promise<HubCatalog | null> {
   const cachePath = path.join(getHubCacheDir(), 'catalog.json');
@@ -240,6 +263,20 @@ async function installSkillItem(
       const adapter = getAdapter(agent.type);
       const isGlobal = options.global ?? true;
       await adapter.installSkill(skill.name, downloadDir, agent.paths, isGlobal);
+
+      if (!options.dryRun) {
+        const targetDir = resolveSkillPath(agent.paths.skills, isGlobal, skill.name);
+        await writeContentLock(targetDir, {
+          name: skill.name,
+          type: 'skill',
+          version: skill.metadata.version,
+          source_url: skill.raw_base_url,
+          agents: [agent.type],
+          dependencies: skill.metadata.dependencies,
+          tags: skill.metadata.tags,
+          post_install_script: skill.metadata.post_install_script,
+        });
+      }
     } catch (error) {
       c.error(`  Failed to install to ${agent.type}: ${error}`);
     }
@@ -296,6 +333,20 @@ async function installCommandItem(
       const adapter = getAdapter(agent.type);
       const isGlobal = options.global ?? true;
       await adapter.installCommand(cmd.metadata.name, commandMd, agent.paths, isGlobal);
+
+      if (!options.dryRun) {
+        const targetDir = resolveCommandPath(agent.paths.commands, isGlobal);
+        await writeContentLock(targetDir, {
+          name: cmd.metadata.name,
+          type: 'command',
+          version: cmd.metadata.version,
+          source_url: cmd.raw_base_url,
+          agents: [agent.type],
+          dependencies: cmd.metadata.dependencies,
+          tags: cmd.metadata.tags,
+          post_install_script: cmd.metadata.post_install_script,
+        });
+      }
     } catch (error) {
       c.error(`  Failed to install to ${agent.type}: ${error}`);
     }
@@ -388,8 +439,16 @@ export async function uninstallByLock(ctx: UserContext, lockFile: LockFile, opti
         const adapter = getAdapter(agent.type);
         if (item.type === 'skill') {
           await adapter.uninstallSkill(item.name, agent.paths);
+
+          const isGlobal = options.global ?? true;
+          const skillPath = resolveSkillPath(agent.paths.skills, isGlobal, item.name);
+          await removeContentLock(skillPath, 'skill');
         } else if (item.type === 'command') {
           await adapter.uninstallCommand(item.name, agent.paths);
+
+          const isGlobal = options.global ?? true;
+          const cmdPath = resolveCommandPath(agent.paths.commands, isGlobal);
+          await removeContentLock(cmdPath, 'command');
         } else if (item.type === 'mcp') {
           await adapter.uninstallMcp(item.name, agent.paths);
         }
@@ -410,8 +469,34 @@ export async function listInstalled(ctx: UserContext): Promise<void> {
     const adapter = getAdapter(agent.type);
     const installed = await adapter.listInstalled(agent.paths);
 
-    if (installed.skills.length > 0) c.sub(`Skills: ${installed.skills.join(', ')}`);
-    if (installed.commands.length > 0) c.sub(`Commands: ${installed.commands.join(', ')}`);
+    if (installed.skills.length > 0) {
+      for (const skillName of installed.skills) {
+        const skillPath = resolveSkillPath(agent.paths.skills, true, skillName);
+        const lock = await readContentLock(skillPath, 'skill');
+        if (lock) {
+          const version = lock.version as string;
+          const source = (lock.source as any)?.url || 'unknown';
+          c.sub(`Skill: ${skillName} ${version ? `v${version}` : ''} ${source !== 'unknown' ? `(${source})` : ''}`);
+        } else {
+          c.sub(`Skill: ${skillName}`);
+        }
+      }
+    }
+
+    if (installed.commands.length > 0) {
+      for (const cmdName of installed.commands) {
+        const cmdPath = resolveCommandPath(agent.paths.commands, true);
+        const lock = await readContentLock(cmdPath, 'command');
+        if (lock && lock.name === cmdName) {
+          const version = lock.version as string;
+          const source = (lock.source as any)?.url || 'unknown';
+          c.sub(`Command: ${cmdName} ${version ? `v${version}` : ''} ${source !== 'unknown' ? `(${source})` : ''}`);
+        } else {
+          c.sub(`Command: ${cmdName}`);
+        }
+      }
+    }
+
     if (installed.mcps.length > 0) c.sub(`MCPs: ${installed.mcps.join(', ')}`);
     if (installed.skills.length === 0 && installed.commands.length === 0 && installed.mcps.length === 0) {
       c.sub('(none)');

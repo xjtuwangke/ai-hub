@@ -64,6 +64,25 @@ export interface HubConfig {
   github_host: string;
 }
 
+export interface ContentLockFile {
+  schema_version: string;
+  name: string;
+  type: 'skill' | 'command' | 'mcp';
+  version: string;
+  installed_at: string;
+  source: {
+    url: string;
+    repo?: string;
+    path?: string;
+  };
+  installed_by: string;
+  installer_version: string;
+  agents: AgentType[];
+  dependencies?: string[];
+  tags?: string[];
+  post_install_script?: PostInstallScript;
+}
+
 export interface InstallRecord {
   name: string;
   type: 'skill' | 'command' | 'mcp';

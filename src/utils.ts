@@ -224,3 +224,59 @@ export function parseChangelog(content: string): ChangelogEntry[] {
 export function formatTags(tags: string[], limit = 3): string {
   return tags.slice(0, limit).map((t) => c.tag(t)).join(' ');
 }
+
+export async function writeContentLock(
+  installDir: string,
+  lock: {
+    name: string;
+    type: 'skill' | 'command' | 'mcp';
+    version: string;
+    source_url: string;
+    agents: string[];
+    dependencies?: string[];
+    tags?: string[];
+    post_install_script?: unknown;
+  }
+): Promise<void> {
+  const lockFileName = lock.type === 'skill' ? '.skill-lock.json' : `.${lock.type}-lock.json`;
+  const lockPath = path.join(installDir, lockFileName);
+
+  const content = {
+    schema_version: '1.0',
+    name: lock.name,
+    type: lock.type,
+    version: lock.version,
+    installed_at: new Date().toISOString(),
+    source: {
+      url: lock.source_url,
+    },
+    installed_by: 'ai-hub',
+    installer_version: '1.0.0',
+    agents: lock.agents,
+    ...(lock.dependencies && lock.dependencies.length > 0 ? { dependencies: lock.dependencies } : {}),
+    ...(lock.tags && lock.tags.length > 0 ? { tags: lock.tags } : {}),
+    ...(lock.post_install_script ? { post_install_script: lock.post_install_script } : {}),
+  };
+
+  await fs.writeFile(lockPath, JSON.stringify(content, null, 2));
+}
+
+export async function readContentLock(
+  installDir: string,
+  type: 'skill' | 'command' | 'mcp'
+): Promise<Record<string, unknown> | null> {
+  const lockFileName = type === 'skill' ? '.skill-lock.json' : `.${type}-lock.json`;
+  const lockPath = path.join(installDir, lockFileName);
+  return readJson<Record<string, unknown>>(lockPath);
+}
+
+export async function removeContentLock(
+  installDir: string,
+  type: 'skill' | 'command' | 'mcp'
+): Promise<void> {
+  const lockFileName = type === 'skill' ? '.skill-lock.json' : `.${type}-lock.json`;
+  const lockPath = path.join(installDir, lockFileName);
+  if (await fs.pathExists(lockPath)) {
+    await fs.remove(lockPath);
+  }
+}

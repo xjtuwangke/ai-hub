@@ -307,6 +307,84 @@ commands/
 }
 ```
 
+## Lock Files
+
+Every installed skill and command gets a **lock file** written next to it. This makes content trackable, manageable, and compatible with future tooling.
+
+### Skill Lock File
+
+When a skill is installed to `~/.config/opencode/skills/api-testing/`, a `.skill-lock.json` is created alongside it:
+
+```json
+{
+  "schema_version": "1.0",
+  "name": "api-testing",
+  "type": "skill",
+  "version": "1.2.0",
+  "installed_at": "2026-05-22T10:00:00.000Z",
+  "source": {
+    "url": "https://raw.githubusercontent.com/xjtuwangke/ai-hub/main/skills/api-testing",
+    "repo": "xjtuwangke/ai-hub",
+    "path": "skills/api-testing"
+  },
+  "installed_by": "ai-hub",
+  "installer_version": "1.0.0",
+  "agents": ["opencode", "codex"],
+  "dependencies": ["test-automation"],
+  "tags": ["qa", "dev", "testing"],
+  "post_install_script": {
+    "cmd": ["node", "post-install.js"],
+    "description": "Creates sample config and test files"
+  }
+}
+```
+
+### Command Lock File
+
+Commands get a `.command-lock.json` in the command directory (e.g., `~/.config/opencode/command/.command-lock.json`):
+
+```json
+{
+  "schema_version": "1.0",
+  "name": "/test-plan",
+  "type": "command",
+  "version": "1.3.0",
+  "installed_at": "2026-05-22T10:00:00.000Z",
+  "source": {
+    "url": "https://raw.githubusercontent.com/xjtuwangke/ai-hub/main/commands/test-plan"
+  },
+  "installed_by": "ai-hub",
+  "agents": ["opencode", "claude"],
+  "dependencies": ["api-testing", "test-automation"],
+  "tags": ["testing", "qa", "plan"]
+}
+```
+
+### Why Lock Files Matter
+
+1. **Traceability**: Know exactly what was installed, when, and from where
+2. **Management**: Future tools (including `npx skills`) can read `.skill-lock.json` to manage content
+3. **Uninstall**: `ai-hub uninstall` reads lock files to precisely remove content
+4. **Update**: Compare lock file version against remote catalog to detect updates
+5. **Compatibility**: Standard format that any AI agent tool can understand
+
+### Lock File Schema
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `schema_version` | string | Lock file format version |
+| `name` | string | Content name |
+| `type` | string | `skill`, `command`, or `mcp` |
+| `version` | string | Installed version |
+| `installed_at` | string | ISO 8601 timestamp |
+| `source.url` | string | Raw GitHub URL |
+| `installed_by` | string | Tool that installed it |
+| `installer_version` | string | Tool version |
+| `agents` | string[] | Target AI agents |
+| `dependencies` | string[] | Dependency skills (optional) |
+| `tags` | string[] | Content tags (optional) |
+| `post_install_script` | object | Post-install config (optional) |
+
 ## CLI Commands
 
 | Command | Alias | Description |
