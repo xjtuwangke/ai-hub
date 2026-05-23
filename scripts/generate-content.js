@@ -613,21 +613,31 @@ for (const skill of skills) {
 }
 
 for (const cmd of commands) {
-  const content = `---
-name: ${cmd.name}
-version: ${cmd.version}
-description: ${cmd.description}
-roles: [${cmd.roles.map((r) => `'${r}'`).join(', ')}]
-agents: [${cmd.agents.map((a) => `'${a}'`).join(', ')}]
-tags: [${cmd.tags.map((t) => `'${t}'`).join(', ')}]
-dependencies: [${cmd.dependencies.map((d) => `'${d}'`).join(', ')}]
-author: platform-team
-last_updated: 2026-05-20
----
+  const cmdDir = path.join(commandsDir, cmd.name.replace(/^\//, ''));
+  ensureDir(cmdDir);
 
-${cmd.body}
-`;
-  fs.writeFileSync(path.join(commandsDir, `${cmd.name.replace(/^\//, '')}.md`), content);
+  fs.writeFileSync(
+    path.join(cmdDir, 'metadata.json'),
+    JSON.stringify(
+      {
+        name: cmd.name,
+        version: cmd.version,
+        description: cmd.description,
+        agents: cmd.agents,
+        tags: cmd.tags,
+        dependencies: cmd.dependencies,
+        author: 'platform-team',
+        last_updated: '2026-05-20',
+      },
+      null,
+      2
+    )
+  );
+
+  fs.writeFileSync(
+    path.join(cmdDir, 'COMMAND.md'),
+    `---\nname: ${cmd.name}\ndescription: ${cmd.description}\n---\n\n${cmd.body}`
+  );
 }
 
 for (const mcp of mcps) {

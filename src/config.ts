@@ -132,6 +132,18 @@ async function detectSingleAgent(def: (typeof AGENT_DEFINITIONS)[0]): Promise<De
   };
 }
 
+export function resolveProxyUrl(priorityProxy?: string): string | undefined {
+  if (priorityProxy) return priorityProxy;
+  return (
+    process.env.https_proxy ||
+    process.env.HTTPS_PROXY ||
+    process.env.http_proxy ||
+    process.env.HTTP_PROXY ||
+    process.env.all_proxy ||
+    process.env.ALL_PROXY
+  );
+}
+
 export function getDefaultHubConfig(): HubConfig {
   return {
     owner: process.env.AI_HUB_OWNER || 'xjtuwangke',
@@ -141,6 +153,7 @@ export function getDefaultHubConfig(): HubConfig {
     commands_path: 'commands',
     mcp_path: 'mcp',
     github_host: process.env.GH_HOST || 'github.com',
+    proxy: resolveProxyUrl(),
   };
 }
 
@@ -160,6 +173,10 @@ export async function buildUserContext(options: CliOptions): Promise<UserContext
     detectInstalledAgents(options),
     loadHubConfig(),
   ]);
+
+  if (options.proxy) {
+    hubConfig.proxy = options.proxy;
+  }
 
   return {
     agents,

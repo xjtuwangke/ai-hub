@@ -1,4 +1,4 @@
-name: GitHub Actions Workflow
+name: Validate AI Hub Contents
 on:
   push:
     branches: [main]
@@ -60,29 +60,41 @@ jobs:
       - name: Validate Commands
         run: |
           errors=0
-          for cmd_file in commands/*.md; do
-            if [ ! -f "$cmd_file" ]; then
+          for cmd_dir in commands/*/; do
+            if [ ! -d "$cmd_dir" ]; then
               continue
             fi
             
-            # 检查 frontmatter
-            if ! head -20 "$cmd_file" | grep -q "^---"; then
-              echo "❌ Missing frontmatter in $cmd_file"
+            if [ ! -f "$cmd_dir/metadata.json" ]; then
+              echo "❌ Missing metadata.json in $cmd_dir"
               errors=$((errors + 1))
+              continue
             fi
             
-            if ! head -20 "$cmd_file" | grep -q "name:"; then
-              echo "❌ Missing 'name' in frontmatter of $cmd_file"
+            if [ ! -f "$cmd_dir/COMMAND.md" ]; then
+              echo "❌ Missing COMMAND.md in $cmd_dir"
               errors=$((errors + 1))
+              continue
             fi
             
-            if ! head -20 "$cmd_file" | grep -q "roles:"; then
-              echo "❌ Missing 'roles' in frontmatter of $cmd_file"
+            # 检查 metadata 必需字段
+            if ! node -e "
+              const fs = require('fs');
+              const meta = JSON.parse(fs.readFileSync('$cmd_dir/metadata.json'));
+              const required = ['name', 'version', 'description', 'agents', 'tags'];
+              for (const field of required) {
+                if (!meta[field]) {
+                  console.log('❌ Missing field: ' + field + ' in $cmd_dir');
+                  process.exit(1);
+                }
+              }
+            "; then
               errors=$((errors + 1))
             fi
           done
           
           if [ $errors -gt 0 ]; then
+            echo "❌ Found $errors error(s)"
             exit 1
           fi
           echo "✅ All commands validated"

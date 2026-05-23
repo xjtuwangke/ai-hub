@@ -9,8 +9,29 @@
   "scripts": {
     "build": "tsc",
     "dev": "ts-node src/index.ts",
+    "clean": "rm -rf dist",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "prepublishOnly": "npm run build"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xjtuwangke/ai-hub.git"
+  },
+  "bugs": {
+    "url": "https://github.com/xjtuwangke/ai-hub/issues"
+  },
+  "homepage": "https://github.com/xjtuwangke/ai-hub#readme",
+  "files": [
+    "dist/",
+    "skills/",
+    "commands/",
+    "mcp/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
   "keywords": [
     "ai",
     "agent",
@@ -26,23 +47,29 @@
   "author": "Platform Team",
   "license": "MIT",
   "dependencies": {
-    "commander": "^12.0.0",
     "chalk": "^4.1.2",
-    "ora": "^5.4.1",
-    "inquirer": "^8.2.6",
-    "yaml": "^2.4.2",
-    "fs-extra": "^11.2.0",
-    "node-fetch": "^2.7.0",
     "cli-table3": "^0.6.5",
-    "semver": "^7.6.2"
+    "commander": "^12.0.0",
+    "fs-extra": "^11.2.0",
+    "http-proxy-agent": "^5.0.0",
+    "https-proxy-agent": "^5.0.1",
+    "inquirer": "^8.2.6",
+    "node-fetch": "^2.7.0",
+    "ora": "^5.4.1",
+    "semver": "^7.6.2",
+    "yaml": "^2.4.2"
   },
   "devDependencies": {
-    "@types/node": "^20.12.0",
     "@types/fs-extra": "^11.0.4",
     "@types/inquirer": "^9.0.7",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^20.12.0",
+    "@types/node-fetch": "^2.6.13",
     "@types/semver": "^7.5.8",
-    "typescript": "^5.4.5",
-    "ts-node": "^10.9.2"
+    "jest": "^30.4.2",
+    "ts-jest": "^29.4.11",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
   },
   "engines": {
     "node": ">=18.0.0"

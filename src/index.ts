@@ -18,7 +18,13 @@ import {
   resolveCommandDependencies,
 } from './installer';
 import { c, confirm, printTable, parseChangelog } from './utils';
-import { CliOptions, RemoteSkill, RemoteCommand, RemoteMcp } from './types';
+import {
+  CliOptions,
+  RemoteSkill,
+  RemoteCommand,
+  RemoteMcp,
+  getItemName,
+} from './types';
 
 const program = new Command();
 
@@ -34,7 +40,8 @@ program
   .option('--owner <owner>', 'GitHub repo owner')
   .option('--repo <repo>', 'GitHub repo name')
   .option('--branch <branch>', 'GitHub branch', 'main')
-  .option('--github-host <host>', 'GitHub Enterprise host', 'github.com');
+  .option('--github-host <host>', 'GitHub Enterprise host', 'github.com')
+  .option('--proxy <url>', 'Proxy URL (http:// or socks5://)');
 
 function parseOptions(globalCmd: Command, subCmdOpts?: Record<string, any>): CliOptions {
   const opts = globalCmd.opts();
@@ -48,6 +55,7 @@ function parseOptions(globalCmd: Command, subCmdOpts?: Record<string, any>): Cli
     repo: opts.repo,
     branch: opts.branch,
     github_host: opts.githubHost,
+    proxy: opts.proxy,
     skills: subCmdOpts?.skill,
     commands: subCmdOpts?.command,
     mcps: subCmdOpts?.mcp,
@@ -461,7 +469,7 @@ program
         process.exit(1);
       }
 
-      const content = await viewItemContent(item, cmdOptions.type, token);
+      const content = await viewItemContent(item, cmdOptions.type, token, ctx.hub_config.proxy);
       console.log('\n' + content);
     } catch (error) {
       c.error(`View failed: ${error}`);
@@ -490,7 +498,7 @@ program
         process.exit(1);
       }
 
-      const changelogContent = await viewChangelog(skill, token);
+      const changelogContent = await viewChangelog(skill, token, ctx.hub_config.proxy);
       if (!changelogContent) {
         c.warning(`No changelog found for ${skillName}`);
         return;

@@ -10,8 +10,8 @@ const adapters: Record<AgentType, AgentAdapter> = {
   copilot: copilot.adapter,
   codex: codex.adapter,
   claude: claude.adapter,
-  cursor: opencode.adapter,
-  windsurf: opencode.adapter,
+  cursor: claude.adapter,
+  windsurf: codex.adapter,
 };
 
 export function getAdapter(agentType: AgentType): AgentAdapter {

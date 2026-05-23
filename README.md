@@ -44,6 +44,37 @@ export AI_HUB_REPO="ai-hub"
 export AI_HUB_YES="1"  # Auto-confirm
 ```
 
+### Proxy Configuration
+
+If you are behind a corporate firewall or in a region where GitHub is restricted, you can configure a proxy in three ways (highest priority first):
+
+**1. CLI option (per-command)**
+
+```bash
+ai-hub list --proxy http://127.0.0.1:7897
+ai-hub install --proxy socks5://127.0.0.1:7897
+```
+
+**2. Environment variables**
+
+```bash
+export https_proxy=http://127.0.0.1:7897
+export http_proxy=http://127.0.0.1:7897
+export all_proxy=socks5://127.0.0.1:7897
+```
+
+**3. Configuration file (`ai-hub.json`)**
+
+```json
+{
+  "owner": "your-org",
+  "repo": "ai-hub",
+  "proxy": "http://127.0.0.1:7897"
+}
+```
+
+Supported proxy formats: `http://`, `https://`, `socks5://`.
+
 ## Repository Structure
 
 ```

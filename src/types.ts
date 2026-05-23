@@ -25,6 +25,7 @@ export interface CommandMetadata {
   version: string;
   description: string;
   agents: AgentType[];
+  roles: string[];
   tags: string[];
   dependencies?: string[];
   category?: string;
@@ -62,6 +63,7 @@ export interface HubConfig {
   commands_path: string;
   mcp_path: string;
   github_host: string;
+  proxy?: string;
 }
 
 export interface ContentLockEntry {
@@ -81,7 +83,7 @@ export interface ContentLockEntry {
 
 export interface AggregatedLockFile {
   schema_version: string;
-  type: 'skill' | 'command';
+  type: 'skill' | 'command' | 'mcp';
   installed_at: string;
   installer: string;
   installer_version: string;
@@ -130,6 +132,7 @@ export interface CliOptions {
   repo?: string;
   branch?: string;
   github_host?: string;
+  proxy?: string;
   skills?: string[];
   commands?: string[];
   mcps?: string[];
@@ -177,4 +180,26 @@ export interface FilterOptions {
   agents?: AgentType[];
   tags?: string[];
   search?: string;
+}
+
+export function isRemoteSkill(item: RemoteSkill | RemoteCommand | RemoteMcp): item is RemoteSkill {
+  return 'metadata' in item && 'raw_base_url' in item && !('config' in item);
+}
+
+export function isRemoteCommand(item: RemoteSkill | RemoteCommand | RemoteMcp): item is RemoteCommand {
+  return 'metadata' in item && 'raw_base_url' in item && !('config' in item) && item.metadata.name.startsWith('/');
+}
+
+export function isRemoteMcp(item: RemoteSkill | RemoteCommand | RemoteMcp): item is RemoteMcp {
+  return 'config' in item && 'raw_url' in item;
+}
+
+export function getItemName(item: RemoteSkill | RemoteCommand | RemoteMcp): string {
+  if (isRemoteMcp(item)) return item.config.name;
+  return item.metadata.name;
+}
+
+export function getItemVersion(item: RemoteSkill | RemoteCommand | RemoteMcp): string {
+  if (isRemoteMcp(item)) return item.config.version;
+  return item.metadata.version;
 }

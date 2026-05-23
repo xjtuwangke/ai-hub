@@ -10,6 +10,7 @@ import {
   LockFile,
   AgentType,
   HubCatalog,
+  getItemName,
 } from './types';
 import {
   startSpinner,
@@ -31,7 +32,7 @@ import {
 } from './utils';
 import { getAdapter } from './agents';
 import { spawn } from 'child_process';
-import { fetchCatalog, fetchSkillContent, fetchCommandContent, fetchText } from './github-client';
+import { fetchCatalog, fetchSkillContent, fetchCommandContent, fetchText, fetchChangelog as fetchChangelogFromClient } from './github-client';
 
 export async function loadCatalog(ctx: UserContext, token?: string): Promise<HubCatalog | null> {
   const cachePath = path.join(getHubCacheDir(), 'catalog.json');
@@ -55,18 +56,18 @@ export async function loadCatalog(ctx: UserContext, token?: string): Promise<Hub
   return catalog;
 }
 
-function matchesAgents(item: { agents: string[] }, ctx: UserContext): boolean {
+export function matchesAgents(item: { agents: string[] }, ctx: UserContext): boolean {
   const userAgents = ctx.agents.map((a) => a.type);
   return item.agents.some((a) => userAgents.includes(a as AgentType));
 }
 
-function matchesTags(item: { tags: string[]; roles?: string[] }, tags?: string[]): boolean {
+export function matchesTags(item: { tags: string[]; roles?: string[] }, tags?: string[]): boolean {
   if (!tags || tags.length === 0) return true;
   const allTags = [...item.tags, ...(item.roles || [])];
   return tags.some((t) => allTags.includes(t));
 }
 
-function matchesSearch(item: { name: string; description: string; tags: string[]; roles?: string[] }, search?: string): boolean {
+export function matchesSearch(item: { name: string; description: string; tags: string[]; roles?: string[] }, search?: string): boolean {
   if (!search) return true;
   const lower = search.toLowerCase();
   return (
@@ -129,10 +130,10 @@ export async function installItem(
   options: CliOptions,
   token?: string
 ): Promise<InstallRecord | null> {
-  const spinner = startSpinner(`Installing ${type}: ${(item as any).metadata?.name || (item as any).name}`);
+  const spinner = startSpinner(`Installing ${type}: ${getItemName(item)}`);
 
   if (options.dryRun) {
-    updateSpinner(`[dry-run] would install ${type}: ${(item as any).metadata?.name || (item as any).name}`);
+    updateSpinner(`[dry-run] would install ${type}: ${getItemName(item)}`);
     stopSpinner(true);
     return null;
   }
@@ -152,7 +153,8 @@ async function runPostInstallScript(
   script: { cmd: string[]; description?: string },
   downloadDir: string,
   token: string | undefined,
-  spinner: ReturnType<typeof startSpinner>
+  spinner: ReturnType<typeof startSpinner>,
+  proxyUrl?: string
 ): Promise<boolean> {
   if (!script || !script.cmd || script.cmd.length === 0) return true;
 
@@ -160,12 +162,12 @@ async function runPostInstallScript(
   updateSpinner(`Running post-install: ${cmdStr}`);
 
   try {
-    const baseUrl = (item as any).raw_base_url || (item as any).raw_url;
+    const baseUrl = 'raw_base_url' in item ? item.raw_base_url : '';
 
     for (const arg of script.cmd) {
       if (arg.match(/\.(js|ts|mjs|cjs|json|yaml|yml|sh)$/)) {
         const fileUrl = `${baseUrl}/${arg}`;
-        const content = await fetchText(fileUrl, token);
+        const content = await fetchText(fileUrl, token, proxyUrl);
         if (content) {
           const filePath = path.join(downloadDir, arg);
           await ensureDir(path.dirname(filePath));
@@ -219,7 +221,7 @@ async function installSkillItem(
   token: string | undefined,
   spinner: ReturnType<typeof startSpinner>
 ): Promise<InstallRecord | null> {
-  const skillMd = await fetchSkillContent(skill, 'SKILL.md', token);
+  const skillMd = await fetchSkillContent(skill, 'SKILL.md', token, ctx.hub_config.proxy);
   if (!skillMd) {
     stopSpinner(false, `Failed to fetch SKILL.md for ${skill.name}`);
     return null;
@@ -267,7 +269,7 @@ async function installSkillItem(
   }
 
   if (skill.metadata.post_install_script && !options.dryRun) {
-    const ok = await runPostInstallScript(skill, 'skill', skill.metadata.post_install_script, downloadDir, token, spinner);
+    const ok = await runPostInstallScript(skill, 'skill', skill.metadata.post_install_script, downloadDir, token, spinner, ctx.hub_config.proxy);
     if (!ok) {
       c.warning(`Post-install failed for skill: ${skill.name}, but installation will continue`);
     }
@@ -291,7 +293,7 @@ async function installCommandItem(
   token: string | undefined,
   spinner: ReturnType<typeof startSpinner>
 ): Promise<InstallRecord | null> {
-  const commandMd = await fetchCommandContent(cmd, 'COMMAND.md', token);
+  const commandMd = await fetchCommandContent(cmd, 'COMMAND.md', token, ctx.hub_config.proxy);
   if (!commandMd) {
     stopSpinner(false, `Failed to fetch COMMAND.md for ${cmd.name}`);
     return null;
@@ -339,7 +341,7 @@ async function installCommandItem(
   }
 
   if (cmd.metadata.post_install_script && !options.dryRun) {
-    const ok = await runPostInstallScript(cmd, 'command', cmd.metadata.post_install_script, downloadDir, token, spinner);
+    const ok = await runPostInstallScript(cmd, 'command', cmd.metadata.post_install_script, downloadDir, token, spinner, ctx.hub_config.proxy);
     if (!ok) {
       c.warning(`Post-install failed for command: ${cmd.name}, but installation will continue`);
     }
@@ -472,14 +474,14 @@ export async function listInstalled(ctx: UserContext): Promise<void> {
   if (allSkills.size > 0) {
     c.sub(`Skills (${allSkills.size}):`);
     for (const item of skillLock?.items || []) {
-      c.sub(`  ${(item as any).name} v${(item as any).version} (${(item as any).source?.url || 'unknown'})`);
+      c.sub(`  ${item.name} v${item.version} (${item.source?.url || 'unknown'})`);
     }
   }
 
   if (allCommands.size > 0) {
     c.sub(`Commands (${allCommands.size}):`);
     for (const item of commandLock?.items || []) {
-      c.sub(`  ${(item as any).name} v${(item as any).version} (${(item as any).source?.url || 'unknown'})`);
+      c.sub(`  ${item.name} v${item.version} (${item.source?.url || 'unknown'})`);
     }
   }
 
@@ -500,22 +502,22 @@ export async function listInstalled(ctx: UserContext): Promise<void> {
 export async function viewItemContent(
   item: RemoteSkill | RemoteCommand | RemoteMcp,
   type: 'skill' | 'command' | 'mcp',
-  token?: string
+  token?: string,
+  proxyUrl?: string
 ): Promise<string> {
   if (type === 'skill') {
-    const content = await fetchSkillContent(item as RemoteSkill, 'SKILL.md', token);
+    const content = await fetchSkillContent(item as RemoteSkill, 'SKILL.md', token, proxyUrl);
     return content || 'Failed to fetch content';
   } else if (type === 'command') {
-    const content = await fetchCommandContent(item as RemoteCommand, 'COMMAND.md', token);
+    const content = await fetchCommandContent(item as RemoteCommand, 'COMMAND.md', token, proxyUrl);
     return content || 'Failed to fetch content';
   } else {
     return JSON.stringify((item as RemoteMcp).config, null, 2);
   }
 }
 
-export async function viewChangelog(skill: RemoteSkill, token?: string): Promise<string | null> {
-  const { fetchChangelog } = require('./github-client');
-  return await fetchChangelog(skill, token);
+export async function viewChangelog(skill: RemoteSkill, token?: string, proxyUrl?: string): Promise<string | null> {
+  return await fetchChangelogFromClient(skill, token, proxyUrl);
 }
 
 export interface DependencyResolution {

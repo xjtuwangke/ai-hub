@@ -3,6 +3,7 @@ import ora, { Ora } from 'ora';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import YAML from 'yaml';
+import { createInterface } from 'readline';
 import { CommandMetadata, ChangelogEntry, AggregatedLockFile, ContentLockEntry } from './types';
 
 export const c = {
@@ -168,8 +169,7 @@ export function scanSecurity(content: string): { safe: boolean; issues: string[]
 export async function confirm(message: string, defaultYes = false): Promise<boolean> {
   if (process.env.AI_HUB_YES === '1') return true;
 
-  const readline = require('readline');
-  const rl = readline.createInterface({
+  const rl = createInterface({
     input: process.stdin,
     output: process.stdout,
   });
