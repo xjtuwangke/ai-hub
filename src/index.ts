@@ -2,7 +2,6 @@
 
 import { Command } from 'commander';
 import inquirer from 'inquirer';
-import path from 'path';
 import { buildUserContext, printEnvironmentReport } from './config';
 import {
   loadCatalog,
@@ -26,8 +25,7 @@ import {
   RemoteMcp,
   getItemName,
 } from './types';
-import { outputScanResult, runSecretScan } from './secret-scan';
-import { resolveCachePath } from './secret-scan/cache-path';
+import { runScanSecretsCli } from './scan-secrets-runner';
 
 const program = new Command();
 
@@ -551,7 +549,7 @@ program
   });
 
 program
-  .command('scan-secrets')
+.command('scan-secrets')
   .description('Scan files for credentials and secret-like patterns')
   .option('-p, --path <path>', 'Target directory or file', process.cwd())
   .option('-r, --rules <path>', 'Custom rule config file (json/yaml)')
@@ -575,66 +573,11 @@ program
   .option('--output <path>', 'Write scan result to file')
   .option('--no-redact', 'Disable secret redaction in output')
   .option('--strict', 'Fail when rule or plugin configuration errors are reported')
-  .action(async (cmdOptions) => {
+  .action(async () => {
     try {
-      const maxSize = Number.parseInt(cmdOptions.maxSize, 10);
-      const concurrency = Number.parseInt(cmdOptions.concurrency, 10);
-
-      if (!Number.isFinite(maxSize) || maxSize <= 0) {
-        c.error('--max-size must be a positive number');
-        process.exit(1);
-      }
-
-      if (!Number.isFinite(concurrency) || concurrency <= 0) {
-        c.error('--concurrency must be a positive number');
-        process.exit(1);
-      }
-
-      if (cmdOptions.json && cmdOptions.sarif) {
-        c.error('Use either --json or --sarif, not both');
-        process.exit(1);
-      }
-
-      const target = path.resolve(cmdOptions.path || process.cwd());
-      const cachePath = resolveCachePath(target, cmdOptions);
-      const result = await runSecretScan({
-        rootPath: target,
-        rulesPath: cmdOptions.rules,
-        useDefaultRules: cmdOptions.defaultRules,
-        useGitIgnore: cmdOptions.gitignore,
-        ignorePatterns: cmdOptions.ignore || [],
-        maxFileSizeBytes: maxSize,
-        includeBinary: cmdOptions.binary,
-        concurrency,
-        gitDiff: cmdOptions.gitDiff !== undefined
-            ? {
-              enabled: true,
-              base: typeof cmdOptions.gitDiff === 'string' ? cmdOptions.gitDiff : null,
-              includeStaged: cmdOptions.gitDiffStaged,
-              includeUntracked: cmdOptions.gitDiffUntracked,
-            }
-            : {
-              enabled: false,
-            },
-        rulesDirs: cmdOptions.rulesDir || [],
-        detectorPluginDirs: cmdOptions.pluginDir || [],
-        baselinePath: cmdOptions.baseline ? path.resolve(cmdOptions.baseline) : null,
-        cachePath,
-      });
-
-      await outputScanResult(result, {
-        json: cmdOptions.json,
-        sarif: cmdOptions.sarif,
-        output: cmdOptions.output,
-        format: cmdOptions.format,
-        redact: cmdOptions.redact,
-      });
-
-      if (result.findings.length > 0) {
-        process.exitCode = 1;
-      }
-      if (cmdOptions.strict && result.errors && result.errors.length > 0) {
-        process.exitCode = 2;
+      const status = runScanSecretsCli(program.rawArgs || process.argv);
+      if (status !== 0) {
+        process.exit(status);
       }
     } catch (error) {
       c.error(`scan-secrets failed: ${error}`);
