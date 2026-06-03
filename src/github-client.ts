@@ -29,20 +29,19 @@ const FETCH_TIMEOUT_MS = 30000;
 const FETCH_RETRIES = 2;
 const MAX_CONCURRENCY = 5;
 
-async function asyncPool<T, R>(concurrency: number, items: T[], fn: (item: T) => Promise<R>): Promise<R[]> {
-  const results: R[] = [];
-  const executing: Promise<void>[] = [];
+export async function asyncPool<T, R>(concurrency: number, items: T[], fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
 
-  for (const item of items) {
-    const p = fn(item).then((r) => { results.push(r); });
-    executing.push(p);
-    if (executing.length >= concurrency) {
-      await Promise.race(executing);
-      executing.splice(executing.findIndex((x) => x === p), 1);
+  async function worker(): Promise<void> {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex++;
+      results[currentIndex] = await fn(items[currentIndex], currentIndex);
     }
   }
 
-  await Promise.all(executing);
+  const workerCount = Math.min(concurrency, items.length);
+  await Promise.all(Array.from({ length: workerCount }, worker));
   return results;
 }
 

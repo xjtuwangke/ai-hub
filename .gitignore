@@ -5,3 +5,4 @@ dist/
 .DS_Store
 .env
 *.local
+.ai-hub-secret-scan-cache.json

@@ -162,3 +162,8 @@ jobs:
         run: |
           npm run build
           echo "✅ Build successful"
+
+      - name: Test Scan Secrets
+        run: |
+          npm test -- --runInBand src/__tests__/scan-secrets-cli.test.ts src/__tests__/secret-scan.test.ts
+          echo "✅ scan-secrets tests passed"

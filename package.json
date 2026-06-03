@@ -4,13 +4,15 @@
   "description": "AI Skill/Command/MCP distribution platform for enterprise teams",
   "main": "dist/index.js",
   "bin": {
-    "ai-hub": "dist/index.js"
+    "ai-hub": "dist/index.js",
+    "scan-secrets": "dist/scan-secrets.js"
   },
   "scripts": {
     "build": "tsc",
     "dev": "ts-node src/index.ts",
     "clean": "rm -rf dist",
     "test": "jest",
+    "test:ci": "npm run build && jest --runInBand",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "prepublishOnly": "npm run build"
@@ -30,7 +32,9 @@
     "mcp/",
     "README.md",
     "LICENSE",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "secret-scan-rules.example.yaml",
+    "secret-scan-plugin.example.js"
   ],
   "keywords": [
     "ai",

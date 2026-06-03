@@ -8,8 +8,10 @@
   "dependencies": ["api-testing", "test-automation"],
   "author": "platform-team",
   "last_updated": "2026-05-20",
-  "post_install_script": {
-    "cmd": ["node", "post-install.js"],
-    "description": "Creates test plan templates and directory"
+  "hooks": {
+    "post-install": {
+      "cmd": ["node", "post-install.js"],
+      "description": "Creates test plan templates and directory"
+    }
   }
 }

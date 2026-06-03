@@ -22,8 +22,10 @@
   "security_grade": "A",
   "last_updated": "2026-05-20",
   "changelog_file": "CHANGELOG.md",
-  "post_install_script": {
-    "cmd": ["node", "post-install.js"],
-    "description": "Creates sample config and test files"
+  "hooks": {
+    "post-install": {
+      "cmd": ["node", "post-install.js"],
+      "description": "Creates sample config and test files"
+    }
   }
 }

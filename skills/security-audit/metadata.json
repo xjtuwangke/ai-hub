@@ -20,8 +20,10 @@
   "author": "platform-team",
   "last_updated": "2026-05-20",
   "changelog_file": "CHANGELOG.md",
-  "post_install_script": {
-    "cmd": ["npx", "ts-node", "post-install.ts"],
-    "description": "Sets up security audit config and checklist"
+  "hooks": {
+    "post-install": {
+      "cmd": ["npx", "ts-node", "post-install.ts"],
+      "description": "Sets up security audit config and checklist"
+    }
   }
 }

@@ -13,7 +13,8 @@ import {
   RemoteMcp,
 } from '../types';
 import { scanSecurity, parseChangelog, parseFrontmatter, expandHome, formatTags } from '../utils';
-import { matchesAgents, matchesTags, matchesSearch } from '../installer';
+import { matchesAgents, matchesTags, matchesSearch, normalizeHooks } from '../installer';
+import { asyncPool } from '../github-client';
 
 describe('types', () => {
   const skill: RemoteSkill = {
@@ -163,6 +164,34 @@ describe('utils', () => {
       expect(result).not.toContain('prod');
     });
   });
+
+  describe('normalizeHooks', () => {
+    it('keeps lifecycle hooks', () => {
+      const hooks = normalizeHooks({
+        hooks: {
+          'before-install': { cmd: ['node', 'prepare.js'] },
+          'post-update': [{ cmd: ['node', 'migrate.js'] }],
+        },
+      });
+
+      expect(hooks['before-install']).toEqual({ cmd: ['node', 'prepare.js'] });
+      expect(hooks['post-update']).toEqual([{ cmd: ['node', 'migrate.js'] }]);
+    });
+
+    it('maps legacy post_install_script to post-install', () => {
+      const hooks = normalizeHooks({
+        post_install_script: {
+          cmd: ['node', 'post-install.js'],
+          description: 'legacy setup',
+        },
+      });
+
+      expect(hooks['post-install']).toEqual({
+        cmd: ['node', 'post-install.js'],
+        description: 'legacy setup',
+      });
+    });
+  });
 });
 
 describe('installer filters', () => {
@@ -205,5 +234,16 @@ describe('installer filters', () => {
     it('rejects non-matching search', () => {
       expect(matchesSearch({ name: 'foo', description: 'bar', tags: [] }, 'baz')).toBe(false);
     });
+  });
+});
+
+describe('github client utilities', () => {
+  it('asyncPool waits for all tasks and preserves item order', async () => {
+    const results = await asyncPool(2, [30, 10, 20], async (delay, index) => {
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      return `item-${index}`;
+    });
+
+    expect(results).toEqual(['item-0', 'item-1', 'item-2']);
   });
 });

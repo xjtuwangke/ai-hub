@@ -2,6 +2,7 @@
 
 import { Command } from 'commander';
 import inquirer from 'inquirer';
+import path from 'path';
 import { buildUserContext, printEnvironmentReport } from './config';
 import {
   loadCatalog,
@@ -25,6 +26,8 @@ import {
   RemoteMcp,
   getItemName,
 } from './types';
+import { outputScanResult, runSecretScan } from './secret-scan';
+import { resolveCachePath } from './secret-scan/cache-path';
 
 const program = new Command();
 
@@ -263,11 +266,9 @@ program
         return;
       }
 
-      c.info('Uninstalling old versions...');
-      await uninstallByLock(ctx, lockFile, options);
-
-      c.info('Installing new versions...');
       const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
+
+      c.info('Loading catalog...');
       const catalog = await loadCatalog(ctx, token);
 
       if (!catalog) {
@@ -275,9 +276,13 @@ program
         process.exit(1);
       }
 
-      let skills = filterSkills(catalog.skills, ctx);
-      const commands = filterCommands(catalog.commands, ctx);
-      const mcps = filterMcps(catalog.mcps, ctx);
+      const installedSkills = new Set(lockFile.items.filter((i) => i.type === 'skill').map((i) => i.name));
+      const installedCommands = new Set(lockFile.items.filter((i) => i.type === 'command').map((i) => i.name));
+      const installedMcps = new Set(lockFile.items.filter((i) => i.type === 'mcp').map((i) => i.name));
+
+      let skills = filterSkills(catalog.skills, ctx).filter((s) => installedSkills.has(s.name) || installedSkills.has(s.metadata.name));
+      const commands = filterCommands(catalog.commands, ctx).filter((c) => installedCommands.has(c.name) || installedCommands.has(c.metadata.name));
+      const mcps = filterMcps(catalog.mcps, ctx).filter((m) => installedMcps.has(m.name) || installedMcps.has(m.config.name));
 
       if (commands.length > 0) {
         const { skillsToAdd, warnings } = resolveCommandDependencies(commands, catalog.skills, skills, ctx);
@@ -292,13 +297,17 @@ program
         }
       }
 
+      c.info('Uninstalling old versions...');
+      await uninstallByLock(ctx, lockFile, options, 'update', token);
+
+      c.info('Installing new versions...');
       const records = [];
       for (const skill of skills) {
-        const record = await installItem(ctx, skill, 'skill', options, token);
+        const record = await installItem(ctx, skill, 'skill', options, token, 'update');
         if (record) records.push(record);
       }
       for (const cmd of commands) {
-        const record = await installItem(ctx, cmd, 'command', options, token);
+        const record = await installItem(ctx, cmd, 'command', options, token, 'update');
         if (record) records.push(record);
       }
       for (const mcp of mcps) {
@@ -335,7 +344,8 @@ program
         return;
       }
 
-      await uninstallByLock(ctx, lockFile, options);
+      const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
+      await uninstallByLock(ctx, lockFile, options, 'uninstall', token);
       c.success('Uninstall complete');
     } catch (error) {
       c.error(`Uninstall failed: ${error}`);
@@ -536,6 +546,98 @@ program
       }
     } catch (error) {
       c.error(`Doctor failed: ${error}`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('scan-secrets')
+  .description('Scan files for credentials and secret-like patterns')
+  .option('-p, --path <path>', 'Target directory or file', process.cwd())
+  .option('-r, --rules <path>', 'Custom rule config file (json/yaml)')
+  .option('--no-default-rules', 'Disable built-in rule set')
+  .option('--no-gitignore', 'Ignore .gitignore filtering')
+  .option('-i, --ignore <pattern...>', 'Additional ignore patterns', [])
+  .option('--max-size <bytes>', 'Maximum file size to scan', '1048576')
+  .option('--binary', 'Include binary files')
+  .option('--concurrency <number>', 'Worker count', '4')
+  .option('--git-diff [base]', 'Only scan git-changed files. Optionally provide base ref')
+  .option('--no-git-diff-staged', 'Exclude staged files in git-diff mode')
+  .option('--no-git-diff-untracked', 'Exclude untracked files in git-diff mode')
+  .option('--rules-dir <path...>', 'Load all rule files in directories', [])
+  .option('--plugin-dir <path...>', 'Load detector plugins from directories', [])
+  .option('--baseline <path>', 'Baseline JSON to suppress known findings')
+  .option('--cache', 'Enable incremental cache with default path')
+  .option('--cache-path <path>', 'Enable cache with custom cache file path')
+  .option('--json', 'Output JSON to STDOUT')
+  .option('--sarif', 'Output SARIF to STDOUT')
+  .option('--format <name>', 'Output format name (summary/json/sarif)')
+  .option('--output <path>', 'Write scan result to file')
+  .option('--no-redact', 'Disable secret redaction in output')
+  .option('--strict', 'Fail when rule or plugin configuration errors are reported')
+  .action(async (cmdOptions) => {
+    try {
+      const maxSize = Number.parseInt(cmdOptions.maxSize, 10);
+      const concurrency = Number.parseInt(cmdOptions.concurrency, 10);
+
+      if (!Number.isFinite(maxSize) || maxSize <= 0) {
+        c.error('--max-size must be a positive number');
+        process.exit(1);
+      }
+
+      if (!Number.isFinite(concurrency) || concurrency <= 0) {
+        c.error('--concurrency must be a positive number');
+        process.exit(1);
+      }
+
+      if (cmdOptions.json && cmdOptions.sarif) {
+        c.error('Use either --json or --sarif, not both');
+        process.exit(1);
+      }
+
+      const target = path.resolve(cmdOptions.path || process.cwd());
+      const cachePath = resolveCachePath(target, cmdOptions);
+      const result = await runSecretScan({
+        rootPath: target,
+        rulesPath: cmdOptions.rules,
+        useDefaultRules: cmdOptions.defaultRules,
+        useGitIgnore: cmdOptions.gitignore,
+        ignorePatterns: cmdOptions.ignore || [],
+        maxFileSizeBytes: maxSize,
+        includeBinary: cmdOptions.binary,
+        concurrency,
+        gitDiff: cmdOptions.gitDiff !== undefined
+            ? {
+              enabled: true,
+              base: typeof cmdOptions.gitDiff === 'string' ? cmdOptions.gitDiff : null,
+              includeStaged: cmdOptions.gitDiffStaged,
+              includeUntracked: cmdOptions.gitDiffUntracked,
+            }
+            : {
+              enabled: false,
+            },
+        rulesDirs: cmdOptions.rulesDir || [],
+        detectorPluginDirs: cmdOptions.pluginDir || [],
+        baselinePath: cmdOptions.baseline ? path.resolve(cmdOptions.baseline) : null,
+        cachePath,
+      });
+
+      await outputScanResult(result, {
+        json: cmdOptions.json,
+        sarif: cmdOptions.sarif,
+        output: cmdOptions.output,
+        format: cmdOptions.format,
+        redact: cmdOptions.redact,
+      });
+
+      if (result.findings.length > 0) {
+        process.exitCode = 1;
+      }
+      if (cmdOptions.strict && result.errors && result.errors.length > 0) {
+        process.exitCode = 2;
+      }
+    } catch (error) {
+      c.error(`scan-secrets failed: ${error}`);
       process.exit(1);
     }
   });

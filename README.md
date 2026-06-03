@@ -32,6 +32,365 @@ npx github:your-org/ai-hub update
 npx github:your-org/ai-hub doctor
 ```
 
+For agent behavior matrix (opencode/copilot/codex/claude), see `AGENTS.md`.
+
+### Secret Scanner
+
+```bash
+# Scan directory (default: current directory)
+npx github:your-org/ai-hub scan-secrets --path .
+
+# Scan one file
+npx github:your-org/ai-hub scan-secrets --path ./services/auth/config.ts
+
+# Scan only changed files
+npx github:your-org/ai-hub scan-secrets --git-diff
+
+# Scan changed files against a base and ignore staged/untracked files
+npx github:your-org/ai-hub scan-secrets --git-diff HEAD~1 --no-git-diff-staged --no-git-diff-untracked
+
+# Scan against base commit and emit SARIF
+npx github:your-org/ai-hub scan-secrets --git-diff HEAD~1 --sarif --output secret-scan.sarif
+
+# Load custom rule file + plugin directory
+npx github:your-org/ai-hub scan-secrets \
+  --rules ./secret-scan-rules.example.yaml \
+  --plugin-dir ./plugins \
+  --output scan-result.json
+
+# CI-friendly JSON run (non-zero exit code if findings)
+npx github:your-org/ai-hub scan-secrets --path . --json --output scan-full.json
+
+# Incremental cache with explicit path
+npx github:your-org/ai-hub scan-secrets --path . --cache --cache-path ./.scan-cache.json
+```
+
+### Standalone Binary
+
+`scan-secrets` is also available after build:
+
+```bash
+npm run build
+scan-secrets --path .
+scan-secrets --path ./services/auth/config.ts --no-default-rules --rules ./secret-scan-rules.example.yaml
+```
+
+### CLI 参数参考
+
+```bash
+scan-secrets \
+  --path ./repo-or-file \
+  --rules ./my-rules.yaml \
+  --rules-dir ./rules \
+  --plugin-dir ./plugins \
+  --baseline ./baseline.json \
+  --git-diff [base] \
+  --no-default-rules \
+  --cache \
+  --cache-path ./.scan-cache.json \
+  --format json \
+  --output scan.json \
+  --max-size 2097152 \
+  --concurrency 8 \
+  --binary \
+  --ignore dist/** node_modules/** \
+  --no-redact \
+  --strict \
+  --no-gitignore
+```
+
+核心说明：
+
+- `--path`: 目标路径（文件或目录），默认当前工作目录。
+- `--rules`: 单个规则文件（支持 `json` / `yaml`）。
+- `--rules-dir`: 规则目录，递归加载 `*.json/*.yml/*.yaml`。
+- `--plugin-dir`: 插件目录，递归加载 `.js/.mjs/.cjs`。
+- `--baseline`: 已知告警抑制文件（JSON 指纹集合）。
+- `--git-diff [base]`: 仅扫描变更文件；不传 `base` 时包含 unstaged、staged、untracked。
+  Git 路径使用 NUL 分隔解析，可处理空格、引号和中文文件名。
+- `--no-git-diff-staged`: `--git-diff` 下排除暂存文件。
+- `--no-git-diff-untracked`: `--git-diff` 下排除未追踪文件。
+- `--cache`: 开启增量缓存，默认路径为 `<scan_path>/.ai-hub-secret-scan-cache.json`；
+  当扫描单文件时自动落在文件所在目录。
+- `--cache-path`: 覆盖默认缓存路径。
+- `--format`: 输出格式，默认 `summary`，支持 `summary/json/sarif`。
+- `--json` / `--sarif`: 兼容参数，等价于 `--format json/sarif`。
+- `--output`: 输出到文件，不传则写终端/默认终端统计摘要。
+- `--no-default-rules`: 不使用内置规则，仅运行自定义规则和插件。
+- `--no-gitignore`: 忽略 `.gitignore` 过滤。
+- `--binary`: 扫描二进制文件（默认跳过）。
+- `--max-size`: 单文件扫描上限（字节），默认 `1048576`。
+- `--concurrency`: 并发 worker 数，默认 `4`。
+- `--ignore <pattern...>`: 额外忽略 glob 模式（可重复传递）。
+- `--no-redact`: 关闭输出脱敏；默认 JSON/SARIF/summary 会脱敏 `match` 与 `snippet`。
+- `--strict`: 规则/插件配置错误时返回退出码 `2`；非严格模式会继续扫描并在 `errors` 字段报告问题。
+
+### 场景化调用示例（可直接复制）
+
+```bash
+# 只扫描 PR 变更并输出 SARIF
+scan-secrets --path . --git-diff HEAD~1 --sarif --output .artifacts/secret-scan.sarif
+
+# CI 强制模式：发现问题返回 1，规则/插件配置错误返回 2
+scan-secrets --path . --json --strict --output /tmp/scan.json
+if [ $? -ne 0 ]; then
+  echo "secret scan failed" >&2
+  exit 1
+fi
+
+# 本地调试时输出原始命中内容（不要用于 CI artifact）
+scan-secrets --path . --json --no-redact
+
+# 只扫描 src 和 services，并排除构建产物
+scan-secrets \
+  --path . \
+  --ignore "dist/**" "build/**" "coverage/**" \
+  --rules-dir ./rules \
+  --plugin-dir ./plugins \
+  --format summary
+
+# 扫描单文件，仅执行插件检测（示例）
+scan-secrets \
+  --path ./services/auth/config.ts \
+  --no-default-rules \
+  --plugin-dir ./plugins \
+  --json \
+  --output config-scan.json
+```
+
+### Baseline（指纹）示例
+
+```bash
+# 生成基线（可直接复用为 --baseline）
+scan-secrets --path . --json --output baseline-full.json
+
+# 使用基线文件抑制历史告警
+scan-secrets --path . --baseline baseline-full.json --sarif --output pr-scan.sarif
+
+# 也可手工写最小 baseline
+cat > baseline.json <<'EOF'
+{
+  "findings": [
+    { "fingerprint": "replace-with-real-fingerprint" }
+  ]
+}
+EOF
+```
+
+### 可复用规则示例（yaml/json）
+
+```yaml
+# secret-rules.yaml
+version: 1
+rules:
+  - id: api-key-generic
+    name: Generic API Key
+    description: API keys in common assignment format
+    severity: high
+    type: regex
+    pattern: "api[_-]?key\\s*[:=]\\s*[\\\"']?([A-Za-z0-9_\\-/\\+]{16,})"
+    flags: i
+    keywords:
+      - api
+      - key
+    allowlist:
+      - placeholder
+      - example
+    paths:
+      - src/**/*.ts
+
+  - id: config-token
+    name: Config Token
+    description: config token with high-entropy body
+    severity: medium
+    type: entropy
+    pattern: '[A-Za-z0-9+/=]{24,}'
+    entropy:
+      enabled: true
+      min_length: 24
+      entropy_threshold: 4.4
+      window_size: 64
+      charset: base64
+```
+
+JSON 示例（同名结构）：
+
+```json
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "aws-like-key",
+      "name": "AWS Access Key",
+      "description": "AWS AccessKeyID style",
+      "severity": "critical",
+      "type": "regex",
+      "pattern": "AKIA[0-9A-Z]{16}",
+      "flags": "i",
+      "paths": ["**/*.ts", "**/*.js", "**/*.py"]
+    }
+  ]
+}
+```
+
+### 插件示例
+
+插件支持：
+
+- 导出单个 detector 函数：`module.exports = function(context) { ... }`
+- 导出对象：`{ id, name, scan }`
+- 导出多个 detector：`{ id, detectors: [...] }`
+
+```javascript
+function scan(context) {
+  const findings = [];
+  for (let i = 0; i < context.lines.length; i++) {
+    const line = context.lines[i];
+    const match = line.match(/TODO_SECRET=([A-Za-z0-9_-]{12,})/i);
+    if (!match) continue;
+    findings.push({
+      rule_id: 'todo-secret',
+      rule_name: 'TODO secret marker',
+      severity: 'medium',
+      line: i + 1,
+      column: match.index + 1,
+      match: match[1],
+      snippet: line,
+      detector: 'todo-secret-plugin',
+    });
+  }
+  return findings;
+}
+
+module.exports = {
+  id: 'todo-secret-plugin',
+  name: 'Todo Marker Detector',
+  scan,
+};
+```
+
+```javascript
+module.exports = {
+  id: 'multi-detector-plugin',
+  detectors: [
+    { id: 'pk-pattern', scan: (context) => [] },
+    { id: 'password-pattern', scan: (context) => [] },
+  ],
+};
+```
+
+`context` 可用字段：
+
+```typescript
+{
+  absolutePath: string;
+  relativePath: string;
+  rootPath: string;
+  content: string;
+  lines: string[];
+}
+```
+
+### 示例输出
+
+```bash
+# 默认终端摘要
+scan-secrets --path .
+
+# JSON 命令行输出并落盘
+scan-secrets --path . --json --output scan.json
+
+# SARIF 输出用于 CI 安全平台
+scan-secrets --git-diff HEAD~1 --sarif --output scan.sarif
+```
+
+### 直接验证入口（可用于 CI）
+
+```bash
+# 入口一致性：独立命令与主命令
+scan-secrets --path ./scan.txt --no-default-rules --cache
+ai-hub scan-secrets --path ./scan.txt --no-default-rules --cache
+```
+
+## 扩展规则与插件（可扩展版本设计）
+
+`scan-secrets` 使用可插拔设计，规则和检测器可独立扩展：
+
+- 规则通过 `--rules` / `--rules-dir` 追加到执行链末尾，且不会影响主命令参数解析。
+- 插件通过 `--plugin-dir` 动态加载，支持单文件导出 detector。
+- 扫描流程固定为：读取文件 → 内置/自定义规则匹配 → 规则告警 → 插件检测 → 合并结果。
+- 输出层与扫描层解耦：`outputScanResult` 统一处理 `json/sarif/summary`，后续可新增更多输出格式。
+
+### 内置规则文件结构（v1）
+
+```yaml
+version: 1
+rules:
+  - id: my-api-key
+    name: Generic API Key
+    description: Example rule
+    severity: high
+    type: regex
+    pattern: 'api_key\\s*=\\s*([A-Za-z0-9_]{16,})'
+    flags: i
+    keywords: [api, key]
+    allowlist: [example, doc]
+```
+
+支持 `regex` 与 `entropy` 两种类型；`type: entropy` 时可配置：
+
+```yaml
+    entropy:
+      enabled: true
+      min_length: 24
+      entropy_threshold: 4.4
+      charset: base64
+```
+
+### 插件约定（v1）
+
+插件入口文件可输出：
+
+```javascript
+module.exports = {
+  id: 'my-plugin',
+  name: 'My Detector Plugin',
+  scan: (context) => {
+    return [{
+      rule_id: 'my-rule',
+      line: 1,
+      column: 1,
+      match: 'token',
+      severity: 'medium',
+      snippet: context.lines[0],
+      detector: 'my-plugin',
+    }];
+  },
+};
+```
+
+也可以直接导出一个 detector 函数，或导出 `detectors` 数组。
+
+`context` 结构示例：
+
+```typescript
+{
+  absolutePath: string;
+  relativePath: string;
+  rootPath: string;
+  content: string;   // 完整文件内容
+  lines: string[];   // 行数组
+}
+```
+
+建议在插件中返回轻量对象并尽量避免副作用；一次扫描内会并行按文件维度执行，不建议做重 IO 操作。
+
+### 可扩展路线图（V1 -> V2）
+
+- V1（当前）：规则/插件热加载（单次进程内动态发现）、`json/sarif` 双输出、`git-diff` 基线扫描。
+- V2（建议）：插件与规则签名白名单、缓存 `mtime+hash` 加速增量扫描、企业内置策略仓库、告警聚合策略（按规则级别/路径）
+- V3（企业定制）：多租户策略配置、扫描结果入库、增量告警/历史比对、REST webhook 输出。
+
 ### Environment Variables
 
 Add to `~/.zshrc` or `~/.bashrc`:
@@ -174,17 +533,29 @@ Generate comprehensive API test cases covering functional, boundary, and error s
 - Initial release
 ```
 
-## Post-Install Scripts
+## Lifecycle Hooks
 
-Skills and commands can optionally include a **post-install script** that runs automatically after installation completes.
+Skills and commands can optionally include **lifecycle hooks** that run around install, update, and uninstall operations.
 
-### Why Use Post-Install Scripts?
+### Supported Events
+
+| Event | When it runs |
+|-------|--------------|
+| `before-install` | After content is downloaded, before it is copied to agents |
+| `post-install` | After a normal install completes |
+| `before-update` | Before an installed item is removed during update |
+| `post-update` | After the updated item is installed |
+| `before-uninstall` | Before an installed item is removed |
+| `post-uninstall` | After an installed item is removed |
+
+### Why Use Hooks?
 
 - Validate required tools (e.g., check if `jest` or `docker` is installed)
 - Create sample configuration files (e.g., `api-test-config.json`)
 - Set up directory structures (e.g., `test-plans/` folder)
 - Initialize databases or environment variables
 - Generate boilerplate code or templates
+- Migrate or clean up generated files during update/uninstall
 
 ### Script Requirements
 
@@ -193,28 +564,42 @@ Skills and commands can optionally include a **post-install script** that runs a
 - Should be idempotent (safe to run multiple times)
 - Should exit with code 0 on success, non-zero on failure
 
-### How to Add a Post-Install Script
+### How to Add Hooks
 
-Add the `post_install_script` field to your `metadata.json`:
+Add a `hooks` object to your `metadata.json`. Each event can define one script or an array of scripts:
 
 ```json
 {
   "name": "api-testing",
   "version": "1.2.0",
-  "post_install_script": {
-    "cmd": ["node", "post-install.js"],
-    "description": "Creates sample config and test files"
+  "hooks": {
+    "before-install": {
+      "cmd": ["node", "validate-tools.js"],
+      "description": "Validates required local tools"
+    },
+    "post-install": {
+      "cmd": ["node", "post-install.js"],
+      "description": "Creates sample config and test files"
+    },
+    "post-update": [
+      {
+        "cmd": ["node", "migrate-config.js"],
+        "description": "Migrates generated config files"
+      }
+    ]
   }
 }
 ```
 
-Place the script file in the same directory:
+Place referenced script files in the same directory:
 
 ```
 skills/api-testing/
 ├── metadata.json
 ├── SKILL.md
-└── post-install.js    ← Post-install script
+├── validate-tools.js
+├── post-install.js
+└── migrate-config.js
 ```
 
 ### CMD Array Format
@@ -223,27 +608,33 @@ skills/api-testing/
 
 ```json
 {
-  "post_install_script": {
-    "cmd": ["node", "post-install.js"],
-    "description": "Run setup script"
+  "hooks": {
+    "post-install": {
+      "cmd": ["node", "post-install.js"],
+      "description": "Run setup script"
+    }
   }
 }
 ```
 
 ```json
 {
-  "post_install_script": {
-    "cmd": ["npx", "ts-node", "setup.ts"],
-    "description": "Run TypeScript setup"
+  "hooks": {
+    "post-install": {
+      "cmd": ["npx", "ts-node", "setup.ts"],
+      "description": "Run TypeScript setup"
+    }
   }
 }
 ```
 
 ```json
 {
-  "post_install_script": {
-    "cmd": ["npm", "install", "jest", "--save-dev"],
-    "description": "Install Jest for testing"
+  "hooks": {
+    "before-install": {
+      "cmd": ["npm", "install", "jest", "--save-dev"],
+      "description": "Install Jest for testing"
+    }
   }
 }
 ```
@@ -283,7 +674,10 @@ if (!fs.existsSync(dir)) {
 2. Security scan runs on all script files
 3. Script files are saved to the download directory
 4. CMD array is executed via `spawn(cmd[0], cmd[1:])`
-5. Installation continues regardless of script success/failure
+5. `before-*` hook failures stop the current item operation
+6. `post-*` hook failures are reported, but the completed operation remains in place
+
+For backward compatibility, `post_install_script` is still read as `hooks["post-install"]`, but new content should use `hooks`.
 
 ## Command Format
 
@@ -363,9 +757,11 @@ When a skill is installed to `~/.config/opencode/skills/api-testing/`, a `.skill
   "agents": ["opencode", "codex"],
   "dependencies": ["test-automation"],
   "tags": ["qa", "dev", "testing"],
-  "post_install_script": {
-    "cmd": ["node", "post-install.js"],
-    "description": "Creates sample config and test files"
+  "hooks": {
+    "post-install": {
+      "cmd": ["node", "post-install.js"],
+      "description": "Creates sample config and test files"
+    }
   }
 }
 ```
@@ -414,7 +810,7 @@ Commands get a `.command-lock.json` in the command directory (e.g., `~/.config/o
 | `agents` | string[] | Target AI agents |
 | `dependencies` | string[] | Dependency skills (optional) |
 | `tags` | string[] | Content tags (optional) |
-| `post_install_script` | object | Post-install config (optional) |
+| `hooks` | object | Lifecycle hook scripts by event (optional) |
 
 ## CLI Commands
 

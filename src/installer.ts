@@ -11,6 +11,9 @@ import {
   AgentType,
   HubCatalog,
   getItemName,
+  ContentHooks,
+  HookEvent,
+  HookScript,
 } from './types';
 import {
   startSpinner,
@@ -128,7 +131,8 @@ export async function installItem(
   item: RemoteSkill | RemoteCommand | RemoteMcp,
   type: 'skill' | 'command' | 'mcp',
   options: CliOptions,
-  token?: string
+  token?: string,
+  lifecycle: 'install' | 'update' = 'install'
 ): Promise<InstallRecord | null> {
   const spinner = startSpinner(`Installing ${type}: ${getItemName(item)}`);
 
@@ -139,47 +143,82 @@ export async function installItem(
   }
 
   if (type === 'skill') {
-    return await installSkillItem(ctx, item as RemoteSkill, options, token, spinner);
+    return await installSkillItem(ctx, item as RemoteSkill, options, token, spinner, lifecycle);
   } else if (type === 'command') {
-    return await installCommandItem(ctx, item as RemoteCommand, options, token, spinner);
+    return await installCommandItem(ctx, item as RemoteCommand, options, token, spinner, lifecycle);
   } else {
     return await installMcpItem(ctx, item as RemoteMcp, options, spinner);
   }
 }
 
-async function runPostInstallScript(
-  item: RemoteSkill | RemoteCommand,
-  type: 'skill' | 'command',
-  script: { cmd: string[]; description?: string },
+export function normalizeHooks(source: { hooks?: ContentHooks; post_install_script?: HookScript }): ContentHooks {
+  const hooks: ContentHooks = { ...(source.hooks || {}) };
+  if (source.post_install_script && !hooks['post-install']) {
+    hooks['post-install'] = source.post_install_script;
+  }
+  return hooks;
+}
+
+function getHookScripts(hooks: ContentHooks | undefined, event: HookEvent): HookScript[] {
+  const hook = hooks?.[event];
+  if (!hook) return [];
+  return Array.isArray(hook) ? hook : [hook];
+}
+
+function getDownloadDir(name: string): string {
+  return path.join(getHubCacheDir(), 'downloads', name.replace(/^\//, ''));
+}
+
+function isHookFileArg(arg: string): boolean {
+  return /\.(js|ts|mjs|cjs|json|yaml|yml|sh)$/.test(arg);
+}
+
+async function runHookScript(
+  name: string,
+  event: HookEvent,
+  script: HookScript,
   downloadDir: string,
   token: string | undefined,
   spinner: ReturnType<typeof startSpinner>,
+  rawBaseUrl?: string,
   proxyUrl?: string
 ): Promise<boolean> {
   if (!script || !script.cmd || script.cmd.length === 0) return true;
 
   const cmdStr = script.cmd.join(' ');
-  updateSpinner(`Running post-install: ${cmdStr}`);
+  updateSpinner(`Running ${event} hook: ${cmdStr}`);
 
   try {
-    const baseUrl = 'raw_base_url' in item ? item.raw_base_url : '';
-
     for (const arg of script.cmd) {
-      if (arg.match(/\.(js|ts|mjs|cjs|json|yaml|yml|sh)$/)) {
-        const fileUrl = `${baseUrl}/${arg}`;
-        const content = await fetchText(fileUrl, token, proxyUrl);
-        if (content) {
-          const filePath = path.join(downloadDir, arg);
-          await ensureDir(path.dirname(filePath));
-          await fs.writeFile(filePath, content);
-          await fs.chmod(filePath, 0o755);
+      if (isHookFileArg(arg)) {
+        const resolvedDownloadDir = path.resolve(downloadDir);
+        const filePath = path.resolve(downloadDir, arg);
+        if (!filePath.startsWith(resolvedDownloadDir + path.sep)) {
+          c.error(`Hook file path escapes download directory: ${arg}`);
+          return false;
+        }
 
-          const fileSecurity = scanSecurity(content);
-          if (!fileSecurity.safe) {
-            c.error(`Post-install file security scan failed: ${arg}`);
-            fileSecurity.issues.forEach((issue) => c.error(`  - ${issue}`));
+        const fileUrl = rawBaseUrl ? `${rawBaseUrl}/${arg}` : undefined;
+        if (fileUrl) {
+          const content = await fetchText(fileUrl, token, proxyUrl);
+          if (content) {
+            await ensureDir(path.dirname(filePath));
+            await fs.writeFile(filePath, content);
+            await fs.chmod(filePath, 0o755);
+
+            const fileSecurity = scanSecurity(content);
+            if (!fileSecurity.safe) {
+              c.error(`Hook file security scan failed: ${arg}`);
+              fileSecurity.issues.forEach((issue) => c.error(`  - ${issue}`));
+              return false;
+            }
+          } else if (!(await fs.pathExists(filePath))) {
+            c.error(`Hook file not found: ${arg}`);
             return false;
           }
+        } else if (!(await fs.pathExists(filePath))) {
+          c.error(`Hook file not found in cache: ${arg}`);
+          return false;
         }
       }
     }
@@ -190,28 +229,50 @@ async function runPostInstallScript(
       const child = spawn(script.cmd[0], script.cmd.slice(1), {
         cwd: downloadDir,
         stdio: 'inherit',
-        env: process.env,
+        env: {
+          ...process.env,
+          AI_HUB_HOOK_EVENT: event,
+          AI_HUB_CONTENT_NAME: name,
+        },
       });
 
       child.on('close', (code) => {
         if (code === 0) {
-          c.success(`Post-install completed: ${cmdStr}`);
+          c.success(`${event} hook completed: ${cmdStr}`);
           resolve(true);
         } else {
-          c.error(`Post-install exited with code ${code}: ${cmdStr}`);
+          c.error(`${event} hook exited with code ${code}: ${cmdStr}`);
           resolve(false);
         }
       });
 
       child.on('error', (err) => {
-        c.error(`Post-install failed: ${err.message}`);
+        c.error(`${event} hook failed: ${err.message}`);
         resolve(false);
       });
     });
   } catch (error: any) {
-    c.error(`Post-install script failed: ${error.message || error}`);
+    c.error(`${event} hook failed: ${error.message || error}`);
     return false;
   }
+}
+
+async function runLifecycleHooks(
+  name: string,
+  hooks: ContentHooks | undefined,
+  event: HookEvent,
+  downloadDir: string,
+  token: string | undefined,
+  spinner: ReturnType<typeof startSpinner>,
+  rawBaseUrl?: string,
+  proxyUrl?: string
+): Promise<boolean> {
+  const scripts = getHookScripts(hooks, event);
+  for (const script of scripts) {
+    const ok = await runHookScript(name, event, script, downloadDir, token, spinner, rawBaseUrl, proxyUrl);
+    if (!ok) return false;
+  }
+  return true;
 }
 
 async function installSkillItem(
@@ -219,7 +280,8 @@ async function installSkillItem(
   skill: RemoteSkill,
   options: CliOptions,
   token: string | undefined,
-  spinner: ReturnType<typeof startSpinner>
+  spinner: ReturnType<typeof startSpinner>,
+  lifecycle: 'install' | 'update'
 ): Promise<InstallRecord | null> {
   const skillMd = await fetchSkillContent(skill, 'SKILL.md', token, ctx.hub_config.proxy);
   if (!skillMd) {
@@ -234,12 +296,20 @@ async function installSkillItem(
     return null;
   }
 
-  const cacheDir = getHubCacheDir();
-  const downloadDir = path.join(cacheDir, 'downloads', skill.name);
+  const downloadDir = getDownloadDir(skill.name);
   await ensureDir(downloadDir);
 
   await fs.writeFile(path.join(downloadDir, 'SKILL.md'), skillMd);
   await fs.writeFile(path.join(downloadDir, 'metadata.json'), JSON.stringify(skill.metadata, null, 2));
+
+  const hooks = normalizeHooks(skill.metadata);
+  if (lifecycle === 'install') {
+    const ok = await runLifecycleHooks(skill.name, hooks, 'before-install', downloadDir, token, spinner, skill.raw_base_url, ctx.hub_config.proxy);
+    if (!ok) {
+      stopSpinner(false, `before-install hook failed for skill: ${skill.name}`);
+      return null;
+    }
+  }
 
   const targetAgents = ctx.agents.filter((a) => skill.metadata.agents.includes(a.type));
   if (targetAgents.length === 0) {
@@ -264,14 +334,15 @@ async function installSkillItem(
       agents: targetAgents.map((a) => a.type),
       dependencies: skill.metadata.dependencies,
       tags: skill.metadata.tags,
-      post_install_script: skill.metadata.post_install_script,
+      hooks,
     });
   }
 
-  if (skill.metadata.post_install_script && !options.dryRun) {
-    const ok = await runPostInstallScript(skill, 'skill', skill.metadata.post_install_script, downloadDir, token, spinner, ctx.hub_config.proxy);
+  if (!options.dryRun) {
+    const event: HookEvent = lifecycle === 'update' ? 'post-update' : 'post-install';
+    const ok = await runLifecycleHooks(skill.name, hooks, event, downloadDir, token, spinner, skill.raw_base_url, ctx.hub_config.proxy);
     if (!ok) {
-      c.warning(`Post-install failed for skill: ${skill.name}, but installation will continue`);
+      c.warning(`${event} hook failed for skill: ${skill.name}, but installation will continue`);
     }
   }
 
@@ -283,6 +354,7 @@ async function installSkillItem(
     installed_at: new Date().toISOString(),
     agents: targetAgents.map((a) => a.type),
     source_path: skill.raw_base_url,
+    hooks,
   };
 }
 
@@ -291,7 +363,8 @@ async function installCommandItem(
   cmd: RemoteCommand,
   options: CliOptions,
   token: string | undefined,
-  spinner: ReturnType<typeof startSpinner>
+  spinner: ReturnType<typeof startSpinner>,
+  lifecycle: 'install' | 'update'
 ): Promise<InstallRecord | null> {
   const commandMd = await fetchCommandContent(cmd, 'COMMAND.md', token, ctx.hub_config.proxy);
   if (!commandMd) {
@@ -306,12 +379,20 @@ async function installCommandItem(
     return null;
   }
 
-  const cacheDir = getHubCacheDir();
-  const downloadDir = path.join(cacheDir, 'downloads', cmd.name);
+  const downloadDir = getDownloadDir(cmd.name);
   await ensureDir(downloadDir);
 
   await fs.writeFile(path.join(downloadDir, 'COMMAND.md'), commandMd);
   await fs.writeFile(path.join(downloadDir, 'metadata.json'), JSON.stringify(cmd.metadata, null, 2));
+
+  const hooks = normalizeHooks(cmd.metadata);
+  if (lifecycle === 'install') {
+    const ok = await runLifecycleHooks(cmd.name, hooks, 'before-install', downloadDir, token, spinner, cmd.raw_base_url, ctx.hub_config.proxy);
+    if (!ok) {
+      stopSpinner(false, `before-install hook failed for command: ${cmd.name}`);
+      return null;
+    }
+  }
 
   const targetAgents = ctx.agents.filter((a) => cmd.metadata.agents.includes(a.type));
   if (targetAgents.length === 0) {
@@ -336,14 +417,15 @@ async function installCommandItem(
       agents: targetAgents.map((a) => a.type),
       dependencies: cmd.metadata.dependencies,
       tags: cmd.metadata.tags,
-      post_install_script: cmd.metadata.post_install_script,
+      hooks,
     });
   }
 
-  if (cmd.metadata.post_install_script && !options.dryRun) {
-    const ok = await runPostInstallScript(cmd, 'command', cmd.metadata.post_install_script, downloadDir, token, spinner, ctx.hub_config.proxy);
+  if (!options.dryRun) {
+    const event: HookEvent = lifecycle === 'update' ? 'post-update' : 'post-install';
+    const ok = await runLifecycleHooks(cmd.name, hooks, event, downloadDir, token, spinner, cmd.raw_base_url, ctx.hub_config.proxy);
     if (!ok) {
-      c.warning(`Post-install failed for command: ${cmd.name}, but installation will continue`);
+      c.warning(`${event} hook failed for command: ${cmd.name}, but installation will continue`);
     }
   }
 
@@ -355,6 +437,7 @@ async function installCommandItem(
     installed_at: new Date().toISOString(),
     agents: ctx.agents.filter((a) => cmd.metadata.agents.includes(a.type)).map((a) => a.type),
     source_path: cmd.raw_base_url,
+    hooks,
   };
 }
 
@@ -410,7 +493,13 @@ export async function loadLockFile(): Promise<LockFile | null> {
   return await readJson<LockFile>(getLockFilePath());
 }
 
-export async function uninstallByLock(ctx: UserContext, lockFile: LockFile, options: CliOptions): Promise<void> {
+export async function uninstallByLock(
+  ctx: UserContext,
+  lockFile: LockFile,
+  options: CliOptions,
+  lifecycle: 'uninstall' | 'update' = 'uninstall',
+  token?: string
+): Promise<void> {
   for (const item of lockFile.items) {
     const spinner = startSpinner(`Uninstalling ${item.type}: ${item.name}`);
 
@@ -421,6 +510,17 @@ export async function uninstallByLock(ctx: UserContext, lockFile: LockFile, opti
     }
 
     try {
+      if (item.type === 'skill' || item.type === 'command') {
+        const hooks = normalizeHooks(item);
+        const beforeEvent: HookEvent = lifecycle === 'update' ? 'before-update' : 'before-uninstall';
+        const downloadDir = getDownloadDir(item.name);
+        const ok = await runLifecycleHooks(item.name, hooks, beforeEvent, downloadDir, token, spinner, item.source_path, ctx.hub_config.proxy);
+        if (!ok) {
+          stopSpinner(false, `${beforeEvent} hook failed for ${item.type}: ${item.name}`);
+          continue;
+        }
+      }
+
       if (item.type === 'skill') {
         for (const agent of ctx.agents) {
           if (!item.agents.includes(agent.type)) continue;
@@ -443,6 +543,9 @@ export async function uninstallByLock(ctx: UserContext, lockFile: LockFile, opti
           }
         }
         await removeFromAggregatedLock('command', item.name);
+        if (!item.name.startsWith('/')) {
+          await removeFromAggregatedLock('command', `/${item.name}`);
+        }
       } else if (item.type === 'mcp') {
         for (const agent of ctx.agents) {
           if (!item.agents.includes(agent.type)) continue;
@@ -452,6 +555,15 @@ export async function uninstallByLock(ctx: UserContext, lockFile: LockFile, opti
           } catch (error) {
             c.error(`  Failed to uninstall from ${agent.type}: ${error}`);
           }
+        }
+      }
+
+      if (lifecycle === 'uninstall' && (item.type === 'skill' || item.type === 'command')) {
+        const hooks = normalizeHooks(item);
+        const downloadDir = getDownloadDir(item.name);
+        const ok = await runLifecycleHooks(item.name, hooks, 'post-uninstall', downloadDir, token, spinner, item.source_path, ctx.hub_config.proxy);
+        if (!ok) {
+          c.warning(`post-uninstall hook failed for ${item.type}: ${item.name}, but uninstall will continue`);
         }
       }
     } catch (error) {

@@ -1,9 +1,21 @@
 export type AgentType = 'opencode' | 'copilot' | 'codex' | 'claude' | 'cursor' | 'windsurf';
 
-export interface PostInstallScript {
+export type HookEvent =
+  | 'before-install'
+  | 'post-install'
+  | 'before-update'
+  | 'post-update'
+  | 'before-uninstall'
+  | 'post-uninstall';
+
+export interface HookScript {
   cmd: string[];
   description?: string;
 }
+
+export type ContentHooks = Partial<Record<HookEvent, HookScript | HookScript[]>>;
+
+export type PostInstallScript = HookScript;
 
 export interface SkillMetadata {
   name: string;
@@ -17,6 +29,8 @@ export interface SkillMetadata {
   security_grade?: 'A' | 'B' | 'C' | 'F';
   last_updated: string;
   changelog_file?: string;
+  hooks?: ContentHooks;
+  /** @deprecated Use hooks["post-install"] instead. */
   post_install_script?: PostInstallScript;
 }
 
@@ -32,6 +46,8 @@ export interface CommandMetadata {
   author?: string;
   last_updated: string;
   changelog_file?: string;
+  hooks?: ContentHooks;
+  /** @deprecated Use hooks["post-install"] instead. */
   post_install_script?: PostInstallScript;
 }
 
@@ -78,6 +94,8 @@ export interface ContentLockEntry {
   agents: AgentType[];
   dependencies?: string[];
   tags?: string[];
+  hooks?: ContentHooks;
+  /** @deprecated Use hooks["post-install"] instead. */
   post_install_script?: PostInstallScript;
 }
 
@@ -97,6 +115,9 @@ export interface InstallRecord {
   installed_at: string;
   agents: AgentType[];
   source_path: string;
+  hooks?: ContentHooks;
+  /** @deprecated Use hooks["post-install"] instead. */
+  post_install_script?: PostInstallScript;
 }
 
 export interface LockFile {
