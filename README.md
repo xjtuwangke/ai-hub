@@ -75,6 +75,14 @@ scan-secrets --path .
 scan-secrets --path ./services/auth/config.ts --no-default-rules --rules ./secret-scan-rules.example.yaml
 ```
 
+You can also run the standalone tool directly from `tools/scan-secrets`:
+
+```bash
+cd tools/scan-secrets
+npm run build
+node dist/index.js --path .
+```
+
 ### CLI 参数参考
 
 ```bash

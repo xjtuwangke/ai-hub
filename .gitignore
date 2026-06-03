@@ -6,3 +6,4 @@ dist/
 .env
 *.local
 .ai-hub-secret-scan-cache.json
+tools/scan-secrets/dist/

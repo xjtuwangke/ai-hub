@@ -9,6 +9,8 @@
   },
   "scripts": {
     "build": "tsc",
+    "build:scan-secrets": "npm --prefix tools/scan-secrets run build",
+    "build:all": "npm run build && npm run build:scan-secrets",
     "dev": "ts-node src/index.ts",
     "clean": "rm -rf dist",
     "test": "jest",
